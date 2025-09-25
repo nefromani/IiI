@@ -1,0 +1,617 @@
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====15
+-- Проверяем что ключ установлен
+if not _G.SCRIPT_KEY then
+    game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
+    return
+end
+
+local MY_HWID = _G.SCRIPT_KEY
+local LOCAL_NODE_HWID_URL = "http://127.0.0.1:51949/hwid"
+
+local function http_get(url)
+    if syn and syn.request then
+        local ok, res = pcall(function() return syn.request({Method = "GET", Url = url}) end)
+        if ok and res and res.Body then return res.Body end
+    end
+    if game and game.HttpGet then
+        local ok, res = pcall(function() return game:HttpGet(url, true) end)
+        if ok and res then return res end
+    end
+    return nil
+end
+
+print("🔐 Проверка HWID...")
+
+-- БЫСТРАЯ проверка HWID
+local server_hwid = (http_get(LOCAL_NODE_HWID_URL) or ""):gsub("%s+","")
+
+if server_hwid == "" then
+    game.Players.LocalPlayer:Kick("❌ Python сервер не отвечает!")
+    return
+end
+
+if server_hwid ~= MY_HWID then
+    game.Players.LocalPlayer:Kick("❌ HWID не совпадает!\nСервер: " .. server_hwid)
+    return
+end
+
+print("✅ HWID проверка пройдена!")
+
+-- ===== УЛУЧШЕННАЯ СИСТЕМА ЗАГРУЗКИ =====
+-- ===== ИСПРАВЛЕННАЯ СИСТЕМА ЗАГРУЗКИ =====
+local function waitForFullLoad()
+    print("[Loading] Waiting for game to fully load...")
+    
+    -- Шаг 1: Базовая загрузка игры
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
+        print("[Loading] Game basic loading complete")
+    end
+    
+    -- Шаг 2: Ждем RunService
+    local RunService = game:GetService("RunService")
+    for i = 1, 10 do
+        RunService.Heartbeat:Wait()
+    end
+    print("[Loading] RunService ready")
+    
+    -- Шаг 3: БЕЗОПАСНО ждем Player полностью загружен
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    
+    -- Безопасное ожидание LocalPlayer
+    while not LocalPlayer do
+        wait(1)
+        LocalPlayer = Players.LocalPlayer
+        print("[Loading] Waiting for LocalPlayer...")
+    end
+    print("[Loading] LocalPlayer ready")
+    
+    -- Шаг 4: БЕЗОПАСНО ждем PlayerGui
+    while not LocalPlayer:FindFirstChild("PlayerGui") do
+        wait(1)
+        print("[Loading] Waiting for PlayerGui...")
+    end
+    print("[Loading] PlayerGui ready")
+    
+    -- Шаг 5: Проверяем CoreGui несколько раз
+    local CoreGui
+    for attempt = 1, 10 do
+        local success, result = pcall(function()
+            return game:GetService("CoreGui")
+        end)
+        
+        if success and result then
+            CoreGui = result
+            -- Дополнительная проверка что CoreGui реально работает
+            local testSuccess = pcall(function()
+                local testGui = Instance.new("ScreenGui")
+                testGui.Parent = CoreGui
+                testGui:Destroy()
+            end)
+            
+            if testSuccess then
+                print("[Loading] CoreGui ready and functional")
+                break
+            end
+        end
+        
+        print("[Loading] CoreGui attempt " .. attempt .. "/10...")
+        wait(0.5)
+    end
+    
+    if not CoreGui then
+        error("Failed to get CoreGui after 10 attempts!")
+    end
+    
+    -- Шаг 6: Дополнительная задержка для полной стабилизации
+    print("[Loading] Final stabilization wait...")
+    wait(2)
+    
+    -- Шаг 7: Проверяем что нет других конфликтующих GUI
+    local existingGUI = CoreGui:FindFirstChild("AUFJoinerUI")
+    if existingGUI then
+        print("[Loading] Removing existing GUI...")
+        existingGUI:Destroy()
+        wait(0.5)
+    end
+    
+    print("[Loading] ✅ All systems ready for UI creation!")
+    return CoreGui
+end
+
+-- ===== ТВОЙ ОСНОВНОЙ СКРИПТ =====
+local WebSocketURL = "ws://127.0.0.1:51948"
+
+local function prints(str)
+    print("[AUFJoiner]: " .. str)
+end
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local VIM = (pcall(function() return game:GetService("VirtualInputManager") end) and game:GetService("VirtualInputManager")) or nil
+
+-- === Умный алгоритм выбора === --
+local function calculateScore(players, money)
+    local currentPlayers = tonumber(players:match("(%d+)/")) or 8
+    local freeSlots = 8 - currentPlayers
+    local moneyValue = tonumber(money:match("%d+")) or 0
+    
+    if freeSlots >= 5 then
+        return freeSlots * 2000000 + moneyValue * 500
+    elseif freeSlots >= 3 then
+        return freeSlots * 1500000 + moneyValue * 1000
+    else
+        return freeSlots * 500000 + moneyValue * 2000
+    end
+end
+
+local isActive = false
+local ws = nil
+local connection = nil
+local menuGui, hopperButton, lockButton, logText, discordLabel
+local jobQueue = {}
+local jobsByName = {}
+local currentBestJob = nil
+local isProcessing = false
+local lastProcessedJob = nil
+local isUILocked = true
+
+local function addLog(message)
+    if not logText then return end
+    logText.Text = "→ " .. message
+end
+
+-- Функции из рабочего скрипта для HirimiGui
+-- БЕЗОПАСНАЯ функция поиска HirimiGui
+local function findHirimiGui()
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if not playerGui then 
+        print("❌ PlayerGui not found")
+        return nil 
+    end
+    
+    local hirimiGui = playerGui:FindFirstChild("HirimiGui")
+    if not hirimiGui then
+        print("❌ HirimiGui not found in PlayerGui")
+        return nil
+    end
+    
+    return hirimiGui
+end
+
+local function findJobIDTextBox(gui)
+    if not gui then return nil end  -- Добавь эту проверку
+    
+    for _, d in ipairs(gui:GetDescendants()) do
+        if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
+            local parent = d.Parent
+            for _, child in ipairs(parent:GetChildren()) do
+                if child:IsA("Frame") then
+                    local tb = child:FindFirstChildOfClass("TextBox")
+                    if tb then return tb end
+                end
+            end
+        end
+    end
+end
+
+-- БЕЗОПАСНАЯ вставка JobID
+local function setJobIDText(targetGui, text)
+    if not targetGui then 
+        print("❌ targetGui is nil in setJobIDText")
+        return false 
+    end
+
+    local textBox = findJobIDTextBox(targetGui)
+    if not textBox then 
+        print("❌ TextBox not found")
+        return false 
+    end
+
+    textBox:CaptureFocus()
+    task.wait(0.01)
+    textBox.Text = text
+    task.wait(0.01)
+    textBox:ReleaseFocus()
+    print("[+] JobID вставлен: " .. text)
+    return true
+end
+
+local function findJoinButton(gui)
+    if not gui then return nil end  -- Добавь эту проверку
+    
+    for _, d in ipairs(gui:GetDescendants()) do
+        if d:IsA("TextLabel") and d.Text == "Join Job-ID" then
+            local parent = d.Parent
+            for _, child in ipairs(parent:GetChildren()) do
+                if child:IsA("TextButton") then
+                    return child
+                end
+            end
+        end
+    end
+end
+
+local function fireFirstConnectionOfSignal(sig)
+    if type(sig) ~= "userdata" then return false end
+    local ok_get, _ = pcall(function() return getconnections end)
+    if not ok_get then return false end
+    local ok, conns = pcall(function() return getconnections(sig) end)
+    if not ok or not conns or #conns == 0 then return false end
+    local success, _ = pcall(function() conns[1]:Fire() end)
+    return success
+end
+
+local function clickJoinButton(targetGui)
+    local button = findJoinButton(targetGui)
+    if not button then return false end
+    
+    if button.Activated then
+        local ok = fireFirstConnectionOfSignal(button.Activated)
+        if ok then
+            print("[+] Кнопка Join нажата (fire first Activated connection)")
+            return true
+        end
+    end
+    
+    -- fallback VirtualInputManager клик
+    if VIM then
+        local absPos = button.AbsolutePosition
+        local absSize = button.AbsoluteSize
+        local x = absPos.X + absSize.X/2
+        local y = absPos.Y + absSize.Y/2
+        VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        task.wait(0.01) -- Идеальная задержка
+        VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
+        print("[~] Кнопка Join нажата через VIM fallback")
+        return true
+    end
+    
+    return false
+end
+
+-- Быстрая бинарная сортировка
+local function insertSorted(jobData)
+    if #jobQueue == 0 then
+        table.insert(jobQueue, jobData)
+        return
+    end
+    
+    local left, right = 1, #jobQueue + 1
+    while left < right do
+        local mid = math.floor((left + right) / 2)
+        if jobQueue[mid].score > jobData.score then
+            left = mid + 1
+        else
+            right = mid
+        end
+    end
+    table.insert(jobQueue, left, jobData)
+end
+
+local function addJob(jobData)
+    if jobsByName[jobData.name] then
+        for i, v in ipairs(jobQueue) do
+            if v.name == jobData.name then
+                table.remove(jobQueue, i)
+                break
+            end
+        end
+    end
+
+    insertSorted(jobData)
+    jobsByName[jobData.name] = jobData
+
+    while #jobQueue > 10 do
+        local removed = table.remove(jobQueue)
+        jobsByName[removed.name] = nil
+    end
+end
+
+-- ИДЕАЛЬНАЯ обработка сервера (задержки как в рабочем скрипте)
+local function processBestJob()
+    if not currentBestJob or isProcessing then return end
+    isProcessing = true
+
+    local playersInfo = currentBestJob.players
+    local moneyInfo = currentBestJob.money
+    local nameInfo = currentBestJob.name
+    addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
+
+    local targetGui = findHirimiGui()
+    if not targetGui then
+        addLog("❌ HirimiGui не найден")
+        isProcessing = false
+        return
+    end
+
+    if not setJobIDText(targetGui, currentBestJob.jobId) then
+        addLog("❌ Не удалось вставить JobID")
+        isProcessing = false
+        return
+    end
+
+    task.wait(0.1) -- Идеальная задержка
+
+    if not clickJoinButton(targetGui) then
+        addLog("❌ Не удалось нажать Join")
+        isProcessing = false
+        return
+    end
+
+    lastProcessedJob = currentBestJob
+    isProcessing = false
+    currentBestJob = nil
+    
+    -- Удаляем из очереди
+    for i, job in ipairs(jobQueue) do
+        if job.jobId == lastProcessedJob.jobId then
+            table.remove(jobQueue, i)
+            jobsByName[job.name] = nil
+            break
+        end
+    end
+end
+
+-- Основной цикл обработки
+local function processingLoop()
+    while true do
+        if isActive and #jobQueue > 0 and not isProcessing then
+            currentBestJob = jobQueue[1]
+            processBestJob()
+        end
+        task.wait(0.05) -- Идеальная задержка
+    end
+end
+
+-- WebSocket соединение
+local function connectWebSocket()
+    local success, socket = pcall(WebSocket.connect, WebSocketURL)
+    if success and socket then
+        ws = socket
+        connection = ws.OnMessage:Connect(function(msg)
+            if not isActive then return end
+
+            local name, money, players, jobId = msg:match("(.+)|(.+)|(.+)|(.+)")
+            if name and money and players and jobId then
+                local jobData = {
+                    name = name,
+                    money = money,
+                    players = players,
+                    jobId = jobId,
+                    score = calculateScore(players, money)
+                }
+
+                addLog("Added: " .. name .. " | " .. players .. " | " .. money .. "/sec")
+                addJob(jobData)
+            end
+        end)
+
+        ws.OnClose:Connect(function()
+            addLog("Disconnected")
+        end)
+        
+        addLog("✅ Connected to server")
+    else
+        addLog("❌ Connection failed")
+    end
+end
+
+-- Создание UI с Discord ссылкой
+local function createUI()
+    print("[UI] Starting UI creation with retry system...")
+    
+    local maxAttempts = 5
+    local CoreGui = nil
+    
+    -- Получаем CoreGui с повторными попытками
+    for attempt = 1, maxAttempts do
+        print("[UI] Creation attempt " .. attempt .. "/" .. maxAttempts)
+        
+        local success, result = pcall(function()
+            return game:GetService("CoreGui")
+        end)
+        
+        if success and result then
+            -- Тестируем что CoreGui действительно работает
+            local testSuccess, testError = pcall(function()
+                local testGui = Instance.new("ScreenGui")
+                testGui.Name = "TestGUI_" .. attempt
+                testGui.Parent = result
+                
+                -- Проверяем что GUI действительно добавился
+                local added = result:FindFirstChild("TestGUI_" .. attempt)
+                if added then
+                    added:Destroy()
+                    return true
+                else
+                    error("Test GUI was not added to CoreGui")
+                end
+            end)
+            
+            if testSuccess then
+                CoreGui = result
+                print("[UI] CoreGui test passed on attempt " .. attempt)
+                break
+            else
+                print("[UI] CoreGui test failed on attempt " .. attempt .. ": " .. (testError or "unknown"))
+            end
+        else
+            print("[UI] Failed to get CoreGui on attempt " .. attempt .. ": " .. (result or "unknown"))
+        end
+        
+        if attempt < maxAttempts then
+            wait(1)
+        end
+    end
+    
+    if not CoreGui then
+        error("[UI] Failed to get working CoreGui after " .. maxAttempts .. " attempts!")
+    end
+
+    -- Создаем основной UI
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AUFJoinerUI"
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    -- ОТДЕЛЬНАЯ Discord ссылка БЕЗ фона (в 3 раза больше)
+    local discordScreenGui = Instance.new("ScreenGui")
+    discordScreenGui.Name = "AUFJoinerDiscord"
+    discordScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    discordLabel = Instance.new("TextLabel")
+    discordLabel.Name = "DiscordLink"
+    discordLabel.Text = "https://discord.gg/T9jXGCKmqw"
+    discordLabel.Size = UDim2.new(0, 400, 0, 60) -- В 3 раза больше
+    discordLabel.Position = UDim2.new(0.5, -200, 0, 5)
+    discordLabel.TextColor3 = Color3.fromRGB(88, 101, 242) -- Discord синий
+    discordLabel.BackgroundTransparency = 1 -- Прозрачный фон!
+    discordLabel.Font = Enum.Font.GothamBlack -- Жирный шрифт
+    discordLabel.TextSize = 20 -- Очень большой размер
+    discordLabel.TextXAlignment = Enum.TextXAlignment.Center
+    discordLabel.TextYAlignment = Enum.TextYAlignment.Center
+    discordLabel.TextStrokeTransparency = 0.5 -- Обводка для читаемости
+    discordLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    discordLabel.Parent = discordScreenGui
+
+    -- Основное меню
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 300, 0, 120)
+    mainFrame.Position = UDim2.new(0.5, -150, 0, 70) -- Сдвинуто ниже под Discord
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Active = not isUILocked
+    mainFrame.Draggable = not isUILocked
+
+    hopperButton = Instance.new("TextButton")
+    hopperButton.Text = "HOPPER"
+    hopperButton.Size = UDim2.new(0, 200, 0, 40)
+    hopperButton.Position = UDim2.new(0.5, -100, 0, 10)
+    hopperButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    hopperButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    hopperButton.Font = Enum.Font.GothamBold
+    hopperButton.TextSize = 16
+
+    lockButton = Instance.new("TextButton")
+    lockButton.Text = "🔒"
+    lockButton.Size = UDim2.new(0, 40, 0, 40)
+    lockButton.Position = UDim2.new(1, -45, 0, 10)
+    lockButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+    lockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lockButton.Font = Enum.Font.GothamBold
+    lockButton.TextSize = 18
+
+    logText = Instance.new("TextLabel")
+    logText.Text = "Ready to start..."
+    logText.Size = UDim2.new(1, -20, 0, 40)
+    logText.Position = UDim2.new(0, 10, 0, 60)
+    logText.TextColor3 = Color3.fromRGB(220, 220, 220)
+    logText.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    logText.BackgroundTransparency = 0.3
+    logText.Font = Enum.Font.GothamMedium
+    logText.TextSize = 14
+    logText.TextXAlignment = Enum.TextXAlignment.Left
+    logText.TextYAlignment = Enum.TextYAlignment.Top
+    logText.TextWrapped = true
+
+    -- Добавляем закругления
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = mainFrame
+
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 6)
+    buttonCorner.Parent = hopperButton
+    buttonCorner:Clone().Parent = lockButton
+
+    local logCorner = Instance.new("UICorner")
+    logCorner.CornerRadius = UDim.new(0, 6)
+    logCorner.Parent = logText
+
+    -- Собираем UI
+    hopperButton.Parent = mainFrame
+    lockButton.Parent = mainFrame
+    logText.Parent = mainFrame
+    mainFrame.Parent = screenGui
+    
+    -- Добавляем оба GUI в CoreGui
+    screenGui.Parent = CoreGui
+    discordScreenGui.Parent = CoreGui
+    
+    -- Проверяем что UI действительно создался
+    wait(0.1)
+    local createdGUI = CoreGui:FindFirstChild("AUFJoinerUI")
+    local createdDiscord = CoreGui:FindFirstChild("AUFJoinerDiscord")
+    if not createdGUI or not createdDiscord then
+        error("[UI] Failed to add ScreenGui to CoreGui!")
+    end
+    
+    print("[UI] ✅ UI created successfully!")
+    return screenGui
+end
+
+-- ===== ГЛАВНЫЙ ЗАПУСК =====
+prints("Loading AUFJoiner system...")
+
+-- Ждем полную загрузку
+local CoreGuiReady = waitForFullLoad()
+
+-- Создаем UI с системой повторов
+menuGui = createUI()
+
+-- Подключаем события
+hopperButton.MouseButton1Click:Connect(function()
+    isActive = not isActive
+    if isActive then
+        hopperButton.Text = "WORKING..."
+        hopperButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+        addLog("Started hopping...")
+        connectWebSocket()
+    else
+        hopperButton.Text = "HOPPER"
+        hopperButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        addLog("Stopped")
+        if connection then connection:Disconnect() end
+        if ws then ws:Close() end
+    end
+end)
+
+lockButton.MouseButton1Click:Connect(function()
+    isUILocked = not isUILocked
+    local mainFrame = menuGui:FindFirstChild("MainFrame")
+
+    if mainFrame then
+        if isUILocked then
+            lockButton.Text = "🔒"
+            lockButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+            mainFrame.Active = false
+            mainFrame.Draggable = false
+            addLog("UI Locked")
+        else
+            lockButton.Text = "🔓"
+            lockButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+            mainFrame.Active = true
+            mainFrame.Draggable = true
+            addLog("UI Unlocked")
+        end
+    end
+end)
+
+-- Запускаем обработку в отдельном потоке
+spawn(processingLoop)
+
+-- ===== СИСТЕМА ОЧИСТКИ ОШИБОК (правильная версия) =====
+local GuiService = cloneref(game:GetService("GuiService"))
+task.spawn(function()
+    while true do
+        GuiService:ClearError()
+        task.wait(0.01)
+    end
+end)
+
+prints("✅ AUFJoiner system loaded successfully!")
+
