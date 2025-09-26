@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====12
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====1
 -- Проверяем что ключ установлен
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
@@ -474,7 +474,7 @@ local function createUI()
     -- Основное меню
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 300, 0, 170) -- Увеличена высота для новой кнопки
+    mainFrame.Size = UDim2.new(0, 300, 0, 120)
     mainFrame.Position = UDim2.new(0.5, -150, 0, 70) -- Сдвинуто ниже под Discord
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     mainFrame.BackgroundTransparency = 0.1
@@ -491,34 +491,6 @@ local function createUI()
     hopperButton.Font = Enum.Font.GothamBold
     hopperButton.TextSize = 16
 
-    -- SPAMMER Button
-    local spammerButton = Instance.new("TextButton")
-    spammerButton.Text = "SPAMMER OFF"
-    spammerButton.Size = UDim2.new(0, 200, 0, 40)
-    spammerButton.Position = UDim2.new(0.5, -100, 0, 60) -- ниже Hopper
-    spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
-    spammerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    spammerButton.Font = Enum.Font.GothamBold
-    spammerButton.TextSize = 16
-    spammerButton.Parent = mainFrame
-
-    local spamButtonCorner = Instance.new("UICorner")
-    spamButtonCorner.CornerRadius = UDim.new(0, 6)
-    spamButtonCorner.Parent = spammerButton
-
-    spammerButton.MouseButton1Click:Connect(function()
-        isSpammerActive = not isSpammerActive
-        if isSpammerActive then
-            spammerButton.Text = "SPAMMER ON"
-            spammerButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
-            addLog("Spammer enabled")
-        else
-            spammerButton.Text = "SPAMMER OFF"
-            spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
-            addLog("Spammer disabled")
-        end
-    end)
-
     lockButton = Instance.new("TextButton")
     lockButton.Text = "🔒"
     lockButton.Size = UDim2.new(0, 40, 0, 40)
@@ -528,10 +500,36 @@ local function createUI()
     lockButton.Font = Enum.Font.GothamBold
     lockButton.TextSize = 18
 
+    -- SPAMMER Button (маленькая кнопка рядом с замочком)
+    local spammerButton = Instance.new("TextButton")
+    spammerButton.Text = "S"
+    spammerButton.Size = UDim2.new(0, 30, 0, 30)
+    spammerButton.Position = UDim2.new(1, -80, 0, 15)
+    spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+    spammerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    spammerButton.Font = Enum.Font.GothamBold
+    spammerButton.TextSize = 14
+    spammerButton.Parent = mainFrame
+
+    local spamButtonCorner = Instance.new("UICorner")
+    spamButtonCorner.CornerRadius = UDim.new(0, 6)
+    spamButtonCorner.Parent = spammerButton
+
+    spammerButton.MouseButton1Click:Connect(function()
+        isSpammerActive = not isSpammerActive
+        if isSpammerActive then
+            spammerButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+            addLog("Spammer enabled")
+        else
+            spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+            addLog("Spammer disabled")
+        end
+    end)
+
     logText = Instance.new("TextLabel")
     logText.Text = "Ready to start..."
     logText.Size = UDim2.new(1, -20, 0, 40)
-    logText.Position = UDim2.new(0, 10, 0, 110) -- Сдвинуто ниже для новой кнопки
+    logText.Position = UDim2.new(0, 10, 0, 60)
     logText.TextColor3 = Color3.fromRGB(220, 220, 220)
     logText.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     logText.BackgroundTransparency = 0.3
