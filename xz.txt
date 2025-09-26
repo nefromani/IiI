@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====836
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
 -- Проверяем что ключ установлен
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
@@ -180,7 +180,7 @@ end
 local isActive = false
 local ws = nil
 local connection = nil
-local menuGui, hopperButton, lockButton, logText, discordLabel
+local menuGui, hopperButton, lockButton, logText, discordLabel, spammerButton
 local jobQueue = {}
 local jobsByName = {}
 local currentBestJob = nil
@@ -190,8 +190,9 @@ local isUILocked = true
 
 -- ===== SPAMMER =====
 local isSpammerActive = false
-local spamCooldown = 10 -- секунд между попытками спама
-local lastJobAttempted = nil
+local spamCooldown = 5 -- секунд между попытками спама
+local lastSpamJob = nil
+local lastSpamTime = 0
 
 local function addLog(message)
     if not logText then return end
@@ -259,7 +260,7 @@ local function setJobIDText(targetGui, text)
 end
 
 local function findJoinButton(gui)
-    if not gui then return nil end  -- Добавь эту проверку
+    if not gui then return nil end
     
     for _, d in ipairs(gui:GetDescendants()) do
         if d:IsA("TextLabel") and d.Text == "Join Job-ID" then
@@ -302,7 +303,7 @@ local function clickJoinButton(targetGui)
         local x = absPos.X + absSize.X/2
         local y = absPos.Y + absSize.Y/2
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.01) -- Идеальная задержка
+        task.wait(0.01)
         VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
         print("[~] Кнопка Join нажата через VIM fallback")
         return true
@@ -331,32 +332,34 @@ local function insertSorted(jobData)
 end
 
 local function addJob(jobData)
-    -- Вставляем в очередь с сортировкой по score
-    if #jobQueue == 0 then
-        table.insert(jobQueue, jobData)
-    else
-        local left, right = 1, #jobQueue+1
-        while left < right do
-            local mid = math.floor((left+right)/2)
-            if jobQueue[mid].score > jobData.score then
-                left = mid + 1
-            else
-                right = mid
+    if jobsByName[jobData.name] then
+        for i, v in ipairs(jobQueue) do
+            if v.name == jobData.name then
+                table.remove(jobQueue, i)
+                break
             end
         end
-        table.insert(jobQueue, left, jobData)
+    end
+
+    insertSorted(jobData)
+    jobsByName[jobData.name] = jobData
+
+    while #jobQueue > 10 do
+        local removed = table.remove(jobQueue)
+        jobsByName[removed.name] = nil
     end
 end
 
-
--- ИДЕАЛЬНАЯ обработка сервера (задержки как в рабочем скрипте)
+-- УСКОРЕННАЯ обработка сервера
 local function processBestJob()
-    if not currentBestJob then return end
+    if not currentBestJob or isProcessing then return end
+    isProcessing = true
 
     local job = currentBestJob
-    local targetGui = playerGui:FindFirstChild("HirimiGui")
+    local targetGui = findHirimiGui()
     if not targetGui then
         addLog("❌ HirimiGui не найден")
+        isProcessing = false
         return
     end
 
@@ -364,18 +367,27 @@ local function processBestJob()
     local success = setJobIDText(targetGui, job.jobId)
     if not success then
         addLog("❌ Не удалось вставить JobID")
+        isProcessing = false
         return
     end
+
+    task.wait(0.01) -- Минимальная задержка
 
     -- Нажатие кнопки Join
     if not clickJoinButton(targetGui) then
         addLog("❌ Не удалось нажать Join")
+        isProcessing = false
         return
     end
 
-    addLog("✅ Joined Job: "..job.name.." | "..job.players.." | "..job.money.."/sec")
+    addLog("✅ Joined: "..job.name.." | "..job.players.." | "..job.money.."/sec")
+    
+    -- Запоминаем для спамера
+    lastSpamJob = job.jobId
+    lastSpamTime = tick()
+    
+    isProcessing = false
 end
-
 
 -- Основной цикл обработки
 local function processingLoop()
@@ -384,7 +396,28 @@ local function processingLoop()
             currentBestJob = jobQueue[1]
             processBestJob()
         end
-        task.wait()
+        task.wait(0.01) -- Ускоренная проверка
+    end
+end
+
+-- SPAMMER LOOP
+local function spammerLoop()
+    while true do
+        if isSpammerActive and lastSpamJob and not isProcessing then
+            local currentTime = tick()
+            if currentTime - lastSpamTime >= spamCooldown then
+                -- Если прошло 5 секунд, пробуем снова
+                local targetGui = findHirimiGui()
+                if targetGui then
+                    setJobIDText(targetGui, lastSpamJob)
+                    task.wait(0.01)
+                    clickJoinButton(targetGui)
+                    addLog("🔄 Spammer: retrying last job")
+                    lastSpamTime = tick()
+                end
+            end
+        end
+        task.wait(0.1)
     end
 end
 
@@ -393,7 +426,7 @@ local function connectWebSocket()
     local success, socket = pcall(WebSocket.connect, WebSocketURL)
     if success and socket then
         ws = socket
-        ws.OnMessage:Connect(function(msg)
+        connection = ws.OnMessage:Connect(function(msg)
             if not isActive then return end
 
             local name, money, players, jobId = msg:match("(.+)|(.+)|(.+)|(.+)")
@@ -408,23 +441,18 @@ local function connectWebSocket()
 
                 addLog("Added: "..name.." | "..players.." | "..money.."/sec")
                 addJob(jobData)
-
-                -- ✅ Сразу вставляем JobID и кликаем Join
-                currentBestJob = jobData
-                processBestJob()
             end
         end)
 
         ws.OnClose:Connect(function()
             addLog("Disconnected")
         end)
-
+        
         addLog("✅ Connected to server")
     else
         addLog("❌ Connection failed")
     end
 end
-
 
 -- Создание UI с Discord ссылкой
 local function createUI()
@@ -491,15 +519,15 @@ local function createUI()
     discordLabel = Instance.new("TextLabel")
     discordLabel.Name = "DiscordLink"
     discordLabel.Text = "https://discord.gg/T9jXGCKmqw"
-    discordLabel.Size = UDim2.new(0, 400, 0, 60) -- В 3 раза больше
+    discordLabel.Size = UDim2.new(0, 400, 0, 60)
     discordLabel.Position = UDim2.new(0.5, -200, 0, 5)
-    discordLabel.TextColor3 = Color3.fromRGB(88, 101, 242) -- Discord синий
-    discordLabel.BackgroundTransparency = 1 -- Прозрачный фон!
-    discordLabel.Font = Enum.Font.GothamBlack -- Жирный шрифт
-    discordLabel.TextSize = 20 -- Очень большой размер
+    discordLabel.TextColor3 = Color3.fromRGB(88, 101, 242)
+    discordLabel.BackgroundTransparency = 1
+    discordLabel.Font = Enum.Font.GothamBlack
+    discordLabel.TextSize = 20
     discordLabel.TextXAlignment = Enum.TextXAlignment.Center
     discordLabel.TextYAlignment = Enum.TextYAlignment.Center
-    discordLabel.TextStrokeTransparency = 0.5 -- Обводка для читаемости
+    discordLabel.TextStrokeTransparency = 0.5
     discordLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     discordLabel.Parent = discordScreenGui
 
@@ -507,7 +535,7 @@ local function createUI()
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
     mainFrame.Size = UDim2.new(0, 300, 0, 120)
-    mainFrame.Position = UDim2.new(0.5, -150, 0, 70) -- Сдвинуто ниже под Discord
+    mainFrame.Position = UDim2.new(0.5, -150, 0, 70)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     mainFrame.BackgroundTransparency = 0.1
     mainFrame.BorderSizePixel = 0
@@ -533,7 +561,7 @@ local function createUI()
     lockButton.TextSize = 18
 
     -- SPAMMER Button (маленькая кнопка рядом с замочком)
-    local spammerButton = Instance.new("TextButton")
+    spammerButton = Instance.new("TextButton")
     spammerButton.Text = "S"
     spammerButton.Size = UDim2.new(0, 30, 0, 30)
     spammerButton.Position = UDim2.new(1, -80, 0, 15)
@@ -541,22 +569,6 @@ local function createUI()
     spammerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     spammerButton.Font = Enum.Font.GothamBold
     spammerButton.TextSize = 14
-    spammerButton.Parent = mainFrame
-
-    local spamButtonCorner = Instance.new("UICorner")
-    spamButtonCorner.CornerRadius = UDim.new(0, 6)
-    spamButtonCorner.Parent = spammerButton
-
-    spammerButton.MouseButton1Click:Connect(function()
-        isSpammerActive = not isSpammerActive
-        if isSpammerActive then
-            spammerButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
-            addLog("Spammer enabled")
-        else
-            spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
-            addLog("Spammer disabled")
-        end
-    end)
 
     logText = Instance.new("TextLabel")
     logText.Text = "Ready to start..."
@@ -580,6 +592,7 @@ local function createUI()
     buttonCorner.CornerRadius = UDim.new(0, 6)
     buttonCorner.Parent = hopperButton
     buttonCorner:Clone().Parent = lockButton
+    buttonCorner:Clone().Parent = spammerButton
 
     local logCorner = Instance.new("UICorner")
     logCorner.CornerRadius = UDim.new(0, 6)
@@ -588,6 +601,7 @@ local function createUI()
     -- Собираем UI
     hopperButton.Parent = mainFrame
     lockButton.Parent = mainFrame
+    spammerButton.Parent = mainFrame
     logText.Parent = mainFrame
     mainFrame.Parent = screenGui
     
@@ -654,25 +668,23 @@ lockButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Запускаем обработку в отдельном потоке
-spawn(processingLoop)
-
--- SPAMMER LOOP
-task.spawn(function()
-    while true do
-        if isSpammerActive and currentBestJob then
-            if lastJobAttempted ~= currentBestJob.jobId then
-                lastJobAttempted = currentBestJob.jobId
-                processBestJob() -- пытаемся зайти в JobID
-            end
-            task.wait(spamCooldown)
-        else
-            task.wait(0.1)
-        end
+-- SPAMMER Button событие
+spammerButton.MouseButton1Click:Connect(function()
+    isSpammerActive = not isSpammerActive
+    if isSpammerActive then
+        spammerButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+        addLog("🔄 Spammer: ON (5s retry)")
+    else
+        spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+        addLog("🔄 Spammer: OFF (single attempt)")
     end
 end)
 
--- ===== СИСТЕМА ОЧИСТКИ ОШИБОК (правильная версия) =====
+-- Запускаем обработку в отдельном потоке
+spawn(processingLoop)
+spawn(spammerLoop)
+
+-- ===== СИСТЕМА ОЧИСТКИ ОШИБОК =====
 local GuiService = cloneref(game:GetService("GuiService"))
 task.spawn(function()
     while true do
