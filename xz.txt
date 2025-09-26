@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====322
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====334
 -- Проверяем что ключ установлен
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
@@ -398,13 +398,21 @@ local function processBestJob()
 end
 
 -- Основной цикл обработки
+-- В функции processingLoop:
 local function processingLoop()
     while true do
         if isActive and #jobQueue > 0 and not isProcessing then
             currentBestJob = jobQueue[1]
+            
+            -- ОБНОВЛЯЕМ СПАМЕР ЕСЛИ ОН АКТИВЕН
+            if isSpammerActive and currentBestJob then
+                lastSpamJob = currentBestJob.jobId
+                lastSpamTime = 0  -- Сбрасываем таймер
+            end
+            
             processBestJob()
         end
-        task.wait(0.01) -- Ускоренная проверка
+        task.wait(0.01)
     end
 end
 
