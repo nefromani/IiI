@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====11
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====1
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -115,6 +115,9 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local VIM = (pcall(function() return game:GetService("VirtualInputManager") end) and game:GetService("VirtualInputManager")) or nil
+local cachedHirimiGui = nil
+local cachedTextBox = nil
+local cachedJoinButton = nil
 
 local function calculateScore(players, money)
     local currentPlayers = tonumber(players:match("(%d+)/")) or 8
@@ -275,47 +278,40 @@ local function processBestJob()
     if not currentBestJob or isProcessing then return end
     isProcessing = true
 
-    local startTime = tick()  -- момент, когда начали обрабатывать job
+    local startTime = tick()  -- старт таймера для логов скорости
 
     local playersInfo = currentBestJob.players
     local moneyInfo = currentBestJob.money
     local nameInfo = currentBestJob.name
     addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
 
-    local targetGui = findHirimiGui()
-    if not targetGui then
-        addLog("❌ HirimiGui не найден")
+    -- Кэшируем GUI один раз
+    if not cachedHirimiGui then
+        cachedHirimiGui = findHirimiGui()
+        cachedTextBox = findJobIDTextBox(cachedHirimiGui)
+        cachedJoinButton = findJoinButton(cachedHirimiGui)
+    end
+
+    if not cachedHirimiGui or not cachedTextBox or not cachedJoinButton then
+        addLog("❌ Не удалось найти GUI элементы")
         isProcessing = false
         return
     end
 
-    if not setJobIDText(targetGui, currentBestJob.jobId) then
-        addLog("❌ Не удалось вставить JobID")
-        isProcessing = false
-        return
-    end
+    cachedTextBox.Text = currentBestJob.jobId  -- ускоренная вставка JobID
+    task.wait(0.01)  -- минимальная задержка, можно даже убрать
 
-    task.wait(0.1)
-
-    if not clickJoinButton(targetGui) then
-        addLog("❌ Не удалось нажать Join")
-        isProcessing = false
-        return
-    end
-
-    local endTime = tick()  -- момент, когда нажали Join
-    local duration = endTime - startTime
-    print(string.format("[AUFJoiner] Job processed in %.3f seconds", duration))
+    pcall(function() cachedJoinButton.Activated:Fire() end)  -- ускоренный клик
+    addLog("✅ Joined job: " .. currentBestJob.name)
 
     lastProcessedJob = currentBestJob
     if isSpammerActive then
         lastSpamJob = currentBestJob.jobId
         lastSpamTime = tick()
     end
-    
-    isProcessing = false
+
     currentBestJob = nil
-    
+
     -- Удаляем из очереди
     for i, job in ipairs(jobQueue) do
         if job.jobId == lastProcessedJob.jobId then
@@ -324,6 +320,11 @@ local function processBestJob()
             break
         end
     end
+
+    local elapsed = tick() - startTime
+    print("[AUFJoiner]: Join speed = " .. string.format("%.3f", elapsed) .. " sec")
+
+    isProcessing = false
 end
 
 
@@ -341,24 +342,20 @@ end
 -- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
 -- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
 local function spammerLoop()
-    while true do
+    RunService.Heartbeat:Connect(function()
         if isSpammerActive and isActive and lastSpamJob then
-            local currentTime = tick()
-            local elapsed = currentTime - lastSpamTime
-
+            local elapsed = tick() - lastSpamTime
             if elapsed <= spamCooldown then
-                local targetGui = findHirimiGui()
-                if targetGui then
-                    setJobIDText(targetGui, lastSpamJob)
-                    task.wait(0.05)
-                    clickJoinButton(targetGui)
+                if cachedTextBox and cachedJoinButton then
+                    cachedTextBox.Text = lastSpamJob
+                    pcall(function() cachedJoinButton.Activated:Fire() end)
                     addLog("🔄 Spammer retry: " .. lastSpamJob)
                 end
             end
         end
-        task.wait(0.1)
-    end
+    end)
 end
+
 
 
 
