@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====555
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -333,25 +333,27 @@ local function processingLoop()
 end
 
 -- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
+-- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
 local function spammerLoop()
     while true do
         if isSpammerActive and isActive and lastSpamJob and not isProcessing then
             local currentTime = tick()
-            if currentTime - lastSpamTime >= spamCooldown then
+
+            -- СПАМИМ только пока прошло <= 5 сек с последнего захода
+            if currentTime - lastSpamTime <= 5 then
                 local targetGui = findHirimiGui()
                 if targetGui then
-                    -- СПАМИМ ПОСЛЕДНИЙ JOB ID
                     setJobIDText(targetGui, lastSpamJob)
                     task.wait(0.1)
                     clickJoinButton(targetGui)
                     addLog("🔄 Spammer retry...")
-                    lastSpamTime = tick()
                 end
             end
         end
-        task.wait(0.5) -- Более частая проверка
+        task.wait(0.5)
     end
 end
+
 
 local function connectWebSocket()
     local success, socket = pcall(WebSocket.connect, WebSocketURL)
@@ -555,3 +557,4 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
+
