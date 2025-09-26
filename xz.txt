@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====11
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====9
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -220,12 +220,27 @@ local function fireFirstConnectionOfSignal(sig)
 end
 
 local function clickJoinButton(targetGui)
-    local button = findJoinButton(targetGui)
-    if not button then return false end
-    
-if button.Activated then
-    fireFirstConnectionOfSignal(button.Activated)
+    for _, descendant in ipairs(targetGui:GetDescendants()) do
+        if descendant:IsA('TextLabel') and descendant.Text == 'Join Job-ID' then
+            local parentFrame = descendant.Parent
+            local button = parentFrame:FindFirstChildOfClass('TextButton')
+            if button then
+                -- Мгновенный клик без task.wait
+                local upConnections = getconnections(button.MouseButton1Up)
+                if #upConnections > 0 then
+                    for _, conn in ipairs(upConnections) do
+                        conn:Fire()
+                    end
+                else
+                    button:Fire('MouseButton1Click')
+                end
+                return button
+            end
+        end
+    end
+    return nil
 end
+
 
 
     
@@ -339,14 +354,17 @@ end
 
 -- ОСНОВНОЙ ЦИКЛ (только 1 раз заходит)
 local function processingLoop()
-    while true do
-        if isActive and #jobQueue > 0 and not isProcessing then
-            currentBestJob = jobQueue[1]
-            processBestJob() -- ТОЛЬКО 1 РАЗ
+    spawn(function()
+        while true do
+            if isActive and #jobQueue > 0 and not isProcessing then
+                currentBestJob = jobQueue[1]
+                processBestJob()
+            end
+            task.wait(0) -- минимальная задержка
         end
-        task.wait(0.001)
-    end
+    end)
 end
+
 
 -- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
 -- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
