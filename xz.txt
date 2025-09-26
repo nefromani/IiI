@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====99
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====11
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -275,6 +275,8 @@ local function processBestJob()
     if not currentBestJob or isProcessing then return end
     isProcessing = true
 
+    local startTime = tick()  -- момент, когда начали обрабатывать job
+
     local playersInfo = currentBestJob.players
     local moneyInfo = currentBestJob.money
     local nameInfo = currentBestJob.name
@@ -301,8 +303,11 @@ local function processBestJob()
         return
     end
 
+    local endTime = tick()  -- момент, когда нажали Join
+    local duration = endTime - startTime
+    print(string.format("[AUFJoiner] Job processed in %.3f seconds", duration))
+
     lastProcessedJob = currentBestJob
-    -- ДЛЯ СПАМЕРА ЗАПОМИНАЕМ JOB ID
     if isSpammerActive then
         lastSpamJob = currentBestJob.jobId
         lastSpamTime = tick()
@@ -320,6 +325,7 @@ local function processBestJob()
         end
     end
 end
+
 
 -- ОСНОВНОЙ ЦИКЛ (только 1 раз заходит)
 local function processingLoop()
@@ -558,4 +564,5 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
+
 
