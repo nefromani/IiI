@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====1
 -- Проверяем что ключ установлен
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
@@ -401,23 +401,28 @@ local function processingLoop()
 end
 
 -- SPAMMER LOOP
+-- SPAMMER LOOP (ИСПРАВЛЕННАЯ)
 local function spammerLoop()
     while true do
-        if isSpammerActive and lastSpamJob and not isProcessing then
-            local currentTime = tick()
-            if currentTime - lastSpamTime >= spamCooldown then
-                -- Если прошло 5 секунд, пробуем снова
-                local targetGui = findHirimiGui()
-                if targetGui then
-                    setJobIDText(targetGui, lastSpamJob)
-                    task.wait(0.01)
-                    clickJoinButton(targetGui)
-                    addLog("🔄 Spammer: retrying last job")
-                    lastSpamTime = tick()
+        if isSpammerActive then
+            if lastSpamJob and not isProcessing then
+                local currentTime = tick()
+                if currentTime - lastSpamTime >= spamCooldown then
+                    -- Если прошло 5 секунд, пробуем снова
+                    local targetGui = findHirimiGui()
+                    if targetGui then
+                        setJobIDText(targetGui, lastSpamJob)
+                        task.wait(0.01)
+                        clickJoinButton(targetGui)
+                        addLog("🔄 Spammer: retrying last job")
+                        lastSpamTime = tick()
+                    end
                 end
             end
+            task.wait(0.1) -- Быстрая проверка когда спамер активен
+        else
+            task.wait(1) -- Медленная проверка когда спамер выключен
         end
-        task.wait(0.1)
     end
 end
 
@@ -694,3 +699,4 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
+
