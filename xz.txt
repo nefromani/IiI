@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====1
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====33
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -285,11 +285,16 @@ local function processBestJob()
     local nameInfo = currentBestJob.name
     addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
 
-    -- Кэшируем GUI один раз
-    if not cachedHirimiGui then
+    -- Ожидаем GUI
+    local tries = 0
+    while (not cachedHirimiGui or not cachedTextBox or not cachedJoinButton) and tries < 50 do
         cachedHirimiGui = findHirimiGui()
-        cachedTextBox = findJobIDTextBox(cachedHirimiGui)
-        cachedJoinButton = findJoinButton(cachedHirimiGui)
+        if cachedHirimiGui then
+            cachedTextBox = findJobIDTextBox(cachedHirimiGui)
+            cachedJoinButton = findJoinButton(cachedHirimiGui)
+        end
+        tries = tries + 1
+        task.wait(0.05)
     end
 
     if not cachedHirimiGui or not cachedTextBox or not cachedJoinButton then
@@ -298,18 +303,18 @@ local function processBestJob()
         return
     end
 
-    cachedTextBox.Text = currentBestJob.jobId  -- ускоренная вставка JobID
-    task.wait(0.01)  -- минимальная задержка, можно даже убрать
-
-    pcall(function() cachedJoinButton.Activated:Fire() end)  -- ускоренный клик
+    -- Вставка JobID и клик
+    cachedTextBox.Text = currentBestJob.jobId
+    task.wait(0.01)
+    pcall(function() cachedJoinButton.Activated:Fire() end)
     addLog("✅ Joined job: " .. currentBestJob.name)
 
+    -- Обновляем переменные
     lastProcessedJob = currentBestJob
     if isSpammerActive then
         lastSpamJob = currentBestJob.jobId
         lastSpamTime = tick()
     end
-
     currentBestJob = nil
 
     -- Удаляем из очереди
@@ -321,11 +326,13 @@ local function processBestJob()
         end
     end
 
+    -- Лог скорости
     local elapsed = tick() - startTime
     print("[AUFJoiner]: Join speed = " .. string.format("%.3f", elapsed) .. " sec")
 
     isProcessing = false
 end
+
 
 
 -- ОСНОВНОЙ ЦИКЛ (только 1 раз заходит)
@@ -345,16 +352,18 @@ local function spammerLoop()
     RunService.Heartbeat:Connect(function()
         if isSpammerActive and isActive and lastSpamJob then
             local elapsed = tick() - lastSpamTime
-            if elapsed <= spamCooldown then
+            if elapsed >= spamCooldown then
                 if cachedTextBox and cachedJoinButton then
                     cachedTextBox.Text = lastSpamJob
                     pcall(function() cachedJoinButton.Activated:Fire() end)
                     addLog("🔄 Spammer retry: " .. lastSpamJob)
+                    lastSpamTime = tick()  -- обновляем время спама
                 end
             end
         end
     end)
 end
+
 
 
 
@@ -507,6 +516,9 @@ hopperButton.MouseButton1Click:Connect(function()
         hopperButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
         addLog("Started hopping...")
         connectWebSocket()
+        
+        spawn(processingLoop)  -- ТОЛЬКО ПОСЛЕ connect
+        spawn(spammerLoop)
     else
         hopperButton.Text = "HOPPER"
         hopperButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
@@ -561,5 +573,3 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
-
-
