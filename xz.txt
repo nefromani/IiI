@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====554
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
 -- Проверяем что ключ установлен
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
@@ -359,6 +359,7 @@ local function addJob(jobData)
 end
 
 -- УСКОРЕННАЯ обработка сервера
+-- УСКОРЕННАЯ обработка сервера
 local function processBestJob()
     if not currentBestJob or isProcessing then return end
     isProcessing = true
@@ -390,9 +391,11 @@ local function processBestJob()
 
     addLog("✅ Joined: "..job.name.." | "..job.players.." | "..job.money.."/sec")
     
-    -- Запоминаем для спамера
-    lastSpamJob = job.jobId
-    lastSpamTime = tick()
+    -- ЗАПОМИНАЕМ ДЛЯ СПАМЕРА ТОЛЬКО ЕСЛИ СПАМЕР ВКЛЮЧЕН
+    if isSpammerActive then
+        lastSpamJob = job.jobId
+        lastSpamTime = tick()
+    end
     
     isProcessing = false
 end
