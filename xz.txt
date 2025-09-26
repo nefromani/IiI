@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====66
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====11
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -223,17 +223,20 @@ local function clickJoinButton(targetGui)
     local button = findJoinButton(targetGui)
     if not button then return false end
 
-    -- Fire стандартное событие
+    -- Fire все MouseButton1Up
     local upConnections = getconnections(button.MouseButton1Up)
     if #upConnections > 0 then
         for _, conn in ipairs(upConnections) do
             conn:Fire()
         end
     else
-        button:Fire('MouseButton1Click')
+        -- Пытаться через старое событие, если нет подключений
+        pcall(function()
+            button.MouseButton1Click:Fire()
+        end)
     end
 
-    -- Если есть VIM — клик с помощью VirtualInputManager
+    -- Если есть VirtualInputManager — клик через него
     if VIM then
         local absPos = button.AbsolutePosition
         local absSize = button.AbsoluteSize
@@ -246,6 +249,7 @@ local function clickJoinButton(targetGui)
 
     return true
 end
+
 
 
 local function insertSorted(jobData)
