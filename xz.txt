@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====11
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====505
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -293,7 +293,7 @@ local function processBestJob()
         return
     end
 
-    task.wait(0.1)
+    task.wait(0)
 
     if not clickJoinButton(targetGui) then
         addLog("❌ Не удалось нажать Join")
