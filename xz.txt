@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====9
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====66
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -220,30 +220,20 @@ local function fireFirstConnectionOfSignal(sig)
 end
 
 local function clickJoinButton(targetGui)
-    for _, descendant in ipairs(targetGui:GetDescendants()) do
-        if descendant:IsA('TextLabel') and descendant.Text == 'Join Job-ID' then
-            local parentFrame = descendant.Parent
-            local button = parentFrame:FindFirstChildOfClass('TextButton')
-            if button then
-                -- Мгновенный клик без task.wait
-                local upConnections = getconnections(button.MouseButton1Up)
-                if #upConnections > 0 then
-                    for _, conn in ipairs(upConnections) do
-                        conn:Fire()
-                    end
-                else
-                    button:Fire('MouseButton1Click')
-                end
-                return button
-            end
+    local button = findJoinButton(targetGui)
+    if not button then return false end
+
+    -- Fire стандартное событие
+    local upConnections = getconnections(button.MouseButton1Up)
+    if #upConnections > 0 then
+        for _, conn in ipairs(upConnections) do
+            conn:Fire()
         end
+    else
+        button:Fire('MouseButton1Click')
     end
-    return nil
-end
 
-
-
-    
+    -- Если есть VIM — клик с помощью VirtualInputManager
     if VIM then
         local absPos = button.AbsolutePosition
         local absSize = button.AbsoluteSize
@@ -252,11 +242,11 @@ end
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
         task.wait(0)
         VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
-        return true
     end
-    
-    return false
+
+    return true
 end
+
 
 local function insertSorted(jobData)
     if #jobQueue == 0 then
