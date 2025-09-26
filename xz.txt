@@ -131,6 +131,8 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local VIM = (pcall(function() return game:GetService("VirtualInputManager") end) and game:GetService("VirtualInputManager")) or nil
+local CoreGui = game:GetService("CoreGui")
+local playerGui = player.PlayerGui
 
 -- === Умный алгоритм выбора === --
 local function calculateScore(players, money)
@@ -292,68 +294,51 @@ local function insertSorted(jobData)
 end
 
 local function addJob(jobData)
-    if jobsByName[jobData.name] then
-        for i, v in ipairs(jobQueue) do
-            if v.name == jobData.name then
-                table.remove(jobQueue, i)
-                break
+    -- Вставляем в очередь с сортировкой по score
+    if #jobQueue == 0 then
+        table.insert(jobQueue, jobData)
+    else
+        local left, right = 1, #jobQueue+1
+        while left < right do
+            local mid = math.floor((left+right)/2)
+            if jobQueue[mid].score > jobData.score then
+                left = mid + 1
+            else
+                right = mid
             end
         end
-    end
-
-    insertSorted(jobData)
-    jobsByName[jobData.name] = jobData
-
-    while #jobQueue > 10 do
-        local removed = table.remove(jobQueue)
-        jobsByName[removed.name] = nil
+        table.insert(jobQueue, left, jobData)
     end
 end
+
 
 -- ИДЕАЛЬНАЯ обработка сервера (задержки как в рабочем скрипте)
 local function processBestJob()
-    if not currentBestJob or isProcessing then return end
-    isProcessing = true
+    if not currentBestJob then return end
 
-    local playersInfo = currentBestJob.players
-    local moneyInfo = currentBestJob.money
-    local nameInfo = currentBestJob.name
-    addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
-
-    local targetGui = findHirimiGui()
+    local job = currentBestJob
+    local targetGui = playerGui:FindFirstChild("HirimiGui")
     if not targetGui then
         addLog("❌ HirimiGui не найден")
-        isProcessing = false
         return
     end
 
-    if not setJobIDText(targetGui, currentBestJob.jobId) then
+    -- Вставка JobID
+    local success = setJobIDText(targetGui, job.jobId)
+    if not success then
         addLog("❌ Не удалось вставить JobID")
-        isProcessing = false
         return
     end
 
-    task.wait(0.001) -- Идеальная задержка
-
+    -- Нажатие кнопки Join
     if not clickJoinButton(targetGui) then
         addLog("❌ Не удалось нажать Join")
-        isProcessing = false
         return
     end
 
-    lastProcessedJob = currentBestJob
-    isProcessing = false
-    currentBestJob = nil
-    
-    -- Удаляем из очереди
-    for i, job in ipairs(jobQueue) do
-        if job.jobId == lastProcessedJob.jobId then
-            table.remove(jobQueue, i)
-            jobsByName[job.name] = nil
-            break
-        end
-    end
+    addLog("✅ Joined Job: "..job.name.." | "..job.players.." | "..job.money.."/sec")
 end
+
 
 -- Основной цикл обработки
 local function processingLoop()
@@ -362,7 +347,7 @@ local function processingLoop()
             currentBestJob = jobQueue[1]
             processBestJob()
         end
-        task.wait(0.01) -- Идеальная задержка
+        task.wait()
     end
 end
 
@@ -371,7 +356,7 @@ local function connectWebSocket()
     local success, socket = pcall(WebSocket.connect, WebSocketURL)
     if success and socket then
         ws = socket
-        connection = ws.OnMessage:Connect(function(msg)
+        ws.OnMessage:Connect(function(msg)
             if not isActive then return end
 
             local name, money, players, jobId = msg:match("(.+)|(.+)|(.+)|(.+)")
@@ -384,20 +369,25 @@ local function connectWebSocket()
                     score = calculateScore(players, money)
                 }
 
-                addLog("Added: " .. name .. " | " .. players .. " | " .. money .. "/sec")
+                addLog("Added: "..name.." | "..players.." | "..money.."/sec")
                 addJob(jobData)
+
+                -- ✅ Сразу вставляем JobID и кликаем Join
+                currentBestJob = jobData
+                processBestJob()
             end
         end)
 
         ws.OnClose:Connect(function()
             addLog("Disconnected")
         end)
-        
+
         addLog("✅ Connected to server")
     else
         addLog("❌ Connection failed")
     end
 end
+
 
 -- Создание UI с Discord ссылкой
 local function createUI()
@@ -614,4 +604,3 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
-
