@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====1313
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -284,12 +284,7 @@ local function processBestJob()
     if not currentBestJob or isProcessing then return end
     isProcessing = true
 
-    local startTime = tick()  -- момент, когда начали обрабатывать job
-
-    local playersInfo = currentBestJob.players
-    local moneyInfo = currentBestJob.money
-    local nameInfo = currentBestJob.name
-    addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
+    local startTime = tick()
 
     local targetGui = getHirimiGui()
     if not targetGui then
@@ -298,33 +293,40 @@ local function processBestJob()
         return
     end
 
+    -- Ввод JobID (старый рабочий способ)
     if not setJobIDText(targetGui, currentBestJob.jobId) then
         addLog("❌ Не удалось вставить JobID")
         isProcessing = false
         return
     end
 
-    task.wait(0.001)
+    task.wait(0.003) -- минимальная задержка между вводом и кликом
 
-    if not clickJoinButton(targetGui) then
-        addLog("❌ Не удалось нажать Join")
+    local button = findJoinButton(targetGui)
+    if not button then
+        addLog("❌ Не удалось найти кнопку Join")
         isProcessing = false
         return
     end
 
-    local endTime = tick()  -- момент, когда нажали Join
+    -- Нажатие кнопки (старый рабочий способ)
+    local upConnections = getconnections(button.MouseButton1Up)
+    if #upConnections > 0 then
+        for _, conn in ipairs(upConnections) do
+            conn:Fire()
+        end
+    else
+        button:MouseButton1Click()
+    end
+
+    local endTime = tick()
     local duration = endTime - startTime
     print(string.format("[AUFJoiner] Job processed in %.3f seconds", duration))
 
     lastProcessedJob = currentBestJob
-    if isSpammerActive then
-        lastSpamJob = currentBestJob.jobId
-        lastSpamTime = tick()
-    end
-    
     isProcessing = false
     currentBestJob = nil
-    
+
     -- Удаляем из очереди
     for i, job in ipairs(jobQueue) do
         if job.jobId == lastProcessedJob.jobId then
@@ -334,6 +336,7 @@ local function processBestJob()
         end
     end
 end
+
 
 
 -- ОСНОВНОЙ ЦИКЛ (только 1 раз заходит)
