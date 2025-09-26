@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====1
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====12
 -- Проверяем что ключ установлен
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
@@ -159,6 +159,11 @@ local currentBestJob = nil
 local isProcessing = false
 local lastProcessedJob = nil
 local isUILocked = true
+
+-- ===== SPAMMER =====
+local isSpammerActive = false
+local spamCooldown = 10 -- секунд между попытками спама
+local lastJobAttempted = nil
 
 local function addLog(message)
     if not logText then return end
@@ -469,7 +474,7 @@ local function createUI()
     -- Основное меню
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 300, 0, 120)
+    mainFrame.Size = UDim2.new(0, 300, 0, 170) -- Увеличена высота для новой кнопки
     mainFrame.Position = UDim2.new(0.5, -150, 0, 70) -- Сдвинуто ниже под Discord
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     mainFrame.BackgroundTransparency = 0.1
@@ -486,6 +491,34 @@ local function createUI()
     hopperButton.Font = Enum.Font.GothamBold
     hopperButton.TextSize = 16
 
+    -- SPAMMER Button
+    local spammerButton = Instance.new("TextButton")
+    spammerButton.Text = "SPAMMER OFF"
+    spammerButton.Size = UDim2.new(0, 200, 0, 40)
+    spammerButton.Position = UDim2.new(0.5, -100, 0, 60) -- ниже Hopper
+    spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+    spammerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    spammerButton.Font = Enum.Font.GothamBold
+    spammerButton.TextSize = 16
+    spammerButton.Parent = mainFrame
+
+    local spamButtonCorner = Instance.new("UICorner")
+    spamButtonCorner.CornerRadius = UDim.new(0, 6)
+    spamButtonCorner.Parent = spammerButton
+
+    spammerButton.MouseButton1Click:Connect(function()
+        isSpammerActive = not isSpammerActive
+        if isSpammerActive then
+            spammerButton.Text = "SPAMMER ON"
+            spammerButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+            addLog("Spammer enabled")
+        else
+            spammerButton.Text = "SPAMMER OFF"
+            spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+            addLog("Spammer disabled")
+        end
+    end)
+
     lockButton = Instance.new("TextButton")
     lockButton.Text = "🔒"
     lockButton.Size = UDim2.new(0, 40, 0, 40)
@@ -498,7 +531,7 @@ local function createUI()
     logText = Instance.new("TextLabel")
     logText.Text = "Ready to start..."
     logText.Size = UDim2.new(1, -20, 0, 40)
-    logText.Position = UDim2.new(0, 10, 0, 60)
+    logText.Position = UDim2.new(0, 10, 0, 110) -- Сдвинуто ниже для новой кнопки
     logText.TextColor3 = Color3.fromRGB(220, 220, 220)
     logText.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     logText.BackgroundTransparency = 0.3
@@ -593,6 +626,21 @@ end)
 
 -- Запускаем обработку в отдельном потоке
 spawn(processingLoop)
+
+-- SPAMMER LOOP
+task.spawn(function()
+    while true do
+        if isSpammerActive and currentBestJob then
+            if lastJobAttempted ~= currentBestJob.jobId then
+                lastJobAttempted = currentBestJob.jobId
+                processBestJob() -- пытаемся зайти в JobID
+            end
+            task.wait(spamCooldown)
+        else
+            task.wait(0.1)
+        end
+    end
+end)
 
 -- ===== СИСТЕМА ОЧИСТКИ ОШИБОК (правильная версия) =====
 local GuiService = cloneref(game:GetService("GuiService"))
