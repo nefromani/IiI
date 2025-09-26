@@ -179,9 +179,7 @@ local function setJobIDText(targetGui, text)
     if not textBox then return false end
 
     textBox:CaptureFocus()
-    task.wait(0.01)
     textBox.Text = text
-    task.wait(0.01)
     textBox:ReleaseFocus()
     return true
 end
