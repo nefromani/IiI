@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====11
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====505
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -143,7 +143,7 @@ local isUILocked = true
 
 -- ===== SPAMMER =====
 local isSpammerActive = false
-local spamCooldown = 5
+local spamCooldown = 2
 local lastSpamJob = nil
 local lastSpamTime = 0
 
@@ -179,9 +179,7 @@ local function setJobIDText(targetGui, text)
     if not textBox then return false end
 
     textBox:CaptureFocus()
-    task.wait(0.01)
     textBox.Text = text
-    task.wait(0.01)
     textBox:ReleaseFocus()
     return true
 end
@@ -214,10 +212,11 @@ local function clickJoinButton(targetGui)
     local button = findJoinButton(targetGui)
     if not button then return false end
     
-    if button.Activated then
-        local ok = fireFirstConnectionOfSignal(button.Activated)
-        if ok then return true end
-    end
+if button.Activated then
+    fireFirstConnectionOfSignal(button.Activated)
+end
+
+
     
     if VIM then
         local absPos = button.AbsolutePosition
@@ -295,7 +294,7 @@ local function processBestJob()
         return
     end
 
-    task.wait(0.1)
+    task.wait(0.001)
 
     if not clickJoinButton(targetGui) then
         addLog("❌ Не удалось нажать Join")
@@ -334,7 +333,7 @@ local function processingLoop()
             currentBestJob = jobQueue[1]
             processBestJob() -- ТОЛЬКО 1 РАЗ
         end
-        task.wait(0.05)
+        task.wait(0.005)
     end
 end
 
@@ -363,36 +362,37 @@ end
 
 
 local function connectWebSocket()
-    local success, socket = pcall(WebSocket.connect, WebSocketURL)
-    if success and socket then
-        ws = socket
-        connection = ws.OnMessage:Connect(function(msg)
-            if not isActive then return end
+    -- 🔹 Сразу подключаемся, без pcall, чтобы быстрее
+    ws = WebSocket.connect(WebSocketURL)
 
-            local name, money, players, jobId = msg:match("(.+)|(.+)|(.+)|(.+)")
-            if name and money and players and jobId then
-                local jobData = {
-                    name = name,
-                    money = money,
-                    players = players,
-                    jobId = jobId,
-                    score = calculateScore(players, money)
-                }
+    -- 🔹 Подключаем обработчик сообщений
+    connection = ws.OnMessage:Connect(function(msg)
+        if not isActive then return end
 
-                addLog("Added: " .. name .. " | " .. players .. " | " .. money .. "/sec")
-                addJob(jobData)
-            end
-        end)
+        -- 🔹 Разбираем строку с серверного WS
+        local name, money, players, jobId = msg:match("(.+)|(.+)|(.+)|(.+)")
+        if name and money and players and jobId then
+            local jobData = {
+                name = name,
+                money = money,
+                players = players,
+                jobId = jobId,
+                score = calculateScore(players, money)
+            }
 
-        ws.OnClose:Connect(function()
-            addLog("Disconnected")
-        end)
-        
-        addLog("✅ Connected to server")
-    else
-        addLog("❌ Connection failed")
-    end
+            addLog("Added: " .. name .. " | " .. players .. " | " .. money .. "/sec")
+            addJob(jobData)
+        end
+    end)
+
+    -- 🔹 Обработчик закрытия соединения
+    ws.OnClose:Connect(function()
+        addLog("Disconnected")
+    end)
+
+    addLog("✅ Connected to server")
 end
+
 
 local function createUI()
     local CoreGui = game:GetService("CoreGui")
@@ -564,6 +564,7 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
+
 
 
 
