@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====555
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -302,6 +302,12 @@ local function processBestJob()
     end
 
     lastProcessedJob = currentBestJob
+    -- ДЛЯ СПАМЕРА ЗАПОМИНАЕМ JOB ID
+    if isSpammerActive then
+        lastSpamJob = currentBestJob.jobId
+        lastSpamTime = tick()
+    end
+    
     isProcessing = false
     currentBestJob = nil
     
@@ -326,15 +332,16 @@ local function processingLoop()
     end
 end
 
--- СПАМЕР ЦИКЛ (работает только если включен спамер)
+-- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
 local function spammerLoop()
     while true do
-        if isSpammerActive and isActive and lastProcessedJob and not isProcessing then
+        if isSpammerActive and isActive and lastSpamJob and not isProcessing then
             local currentTime = tick()
             if currentTime - lastSpamTime >= spamCooldown then
                 local targetGui = findHirimiGui()
                 if targetGui then
-                    setJobIDText(targetGui, lastProcessedJob.jobId)
+                    -- СПАМИМ ПОСЛЕДНИЙ JOB ID
+                    setJobIDText(targetGui, lastSpamJob)
                     task.wait(0.1)
                     clickJoinButton(targetGui)
                     addLog("🔄 Spammer retry...")
@@ -342,7 +349,7 @@ local function spammerLoop()
                 end
             end
         end
-        task.wait(1)
+        task.wait(0.5) -- Более частая проверка
     end
 end
 
@@ -414,6 +421,16 @@ local function createUI()
     mainFrame.Active = not isUILocked
     mainFrame.Draggable = not isUILocked
 
+    -- КНОПКА СПАМЕРА СЛЕВА (СИНЯЯ)
+    spammerButton = Instance.new("TextButton")
+    spammerButton.Text = "S"
+    spammerButton.Size = UDim2.new(0, 30, 0, 30)
+    spammerButton.Position = UDim2.new(0, 10, 0, 15) -- СЛЕВА
+    spammerButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200) -- СИНИЙ ЦВЕТ
+    spammerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    spammerButton.Font = Enum.Font.GothamBold
+    spammerButton.TextSize = 14
+
     hopperButton = Instance.new("TextButton")
     hopperButton.Text = "HOPPER"
     hopperButton.Size = UDim2.new(0, 200, 0, 40)
@@ -426,21 +443,11 @@ local function createUI()
     lockButton = Instance.new("TextButton")
     lockButton.Text = "🔒"
     lockButton.Size = UDim2.new(0, 40, 0, 40)
-    lockButton.Position = UDim2.new(1, -45, 0, 10)
+    lockButton.Position = UDim2.new(1, -45, 0, 10) -- СПРАВА
     lockButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
     lockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     lockButton.Font = Enum.Font.GothamBold
     lockButton.TextSize = 18
-
-    -- КНОПКА СПАМЕРА
-    spammerButton = Instance.new("TextButton")
-    spammerButton.Text = "S"
-    spammerButton.Size = UDim2.new(0, 30, 0, 30)
-    spammerButton.Position = UDim2.new(1, -80, 0, 15)
-    spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
-    spammerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    spammerButton.Font = Enum.Font.GothamBold
-    spammerButton.TextSize = 14
 
     logText = Instance.new("TextLabel")
     logText.Text = "Ready to start..."
@@ -528,10 +535,10 @@ end)
 spammerButton.MouseButton1Click:Connect(function()
     isSpammerActive = not isSpammerActive
     if isSpammerActive then
-        spammerButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+        spammerButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200) -- ЯРКО-СИНИЙ при включении
         addLog("🔄 Spammer: ON (5s retry)")
     else
-        spammerButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+        spammerButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200) -- ОБЫЧНЫЙ СИНИЙ при выключении
         addLog("🔄 Spammer: OFF (single attempt)")
     end
 end)
