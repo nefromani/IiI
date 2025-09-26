@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====4
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====836
 -- Проверяем что ключ установлен
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
@@ -121,6 +121,34 @@ local function waitForFullLoad()
 end
 
 -- ===== ТВОЙ ОСНОВНОЙ СКРИПТ =====
+-- ЗАЩИТА ОТ ОШИБОК ZENIT
+local function safeWaitForChild(parent, childName, timeout)
+    timeout = timeout or 10
+    local start = tick()
+    while tick() - start < timeout do
+        if parent and parent.FindFirstChild then
+            local child = parent:FindFirstChild(childName)
+            if child then
+                return child
+            end
+        end
+        task.wait(0.1)
+    end
+    return nil
+end
+
+-- БЕЗОПАСНАЯ загрузка
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+while not player do
+    task.wait(0.5)
+    player = Players.LocalPlayer
+end
+
 local WebSocketURL = "ws://127.0.0.1:51948"
 
 local function prints(str)
@@ -173,13 +201,15 @@ end
 -- Функции из рабочего скрипта для HirimiGui
 -- БЕЗОПАСНАЯ функция поиска HirimiGui
 local function findHirimiGui()
-    local playerGui = player:FindFirstChild("PlayerGui")
+    -- Безопасное ожидание PlayerGui
+    local playerGui = safeWaitForChild(player, "PlayerGui")
     if not playerGui then 
-        print("❌ PlayerGui not found")
+        print("❌ PlayerGui not found after waiting")
         return nil 
     end
     
-    local hirimiGui = playerGui:FindFirstChild("HirimiGui")
+    -- Безопасное ожидание HirimiGui
+    local hirimiGui = safeWaitForChild(playerGui, "HirimiGui")
     if not hirimiGui then
         print("❌ HirimiGui not found in PlayerGui")
         return nil
@@ -189,15 +219,17 @@ local function findHirimiGui()
 end
 
 local function findJobIDTextBox(gui)
-    if not gui then return nil end  -- Добавь эту проверку
+    if not gui then return nil end
     
     for _, d in ipairs(gui:GetDescendants()) do
-        if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
+        if d and d:IsA("TextLabel") and d.Text == "Job-ID Input" then
             local parent = d.Parent
-            for _, child in ipairs(parent:GetChildren()) do
-                if child:IsA("Frame") then
-                    local tb = child:FindFirstChildOfClass("TextBox")
-                    if tb then return tb end
+            if parent then
+                for _, child in ipairs(parent:GetChildren()) do
+                    if child and child:IsA("Frame") then
+                        local tb = child:FindFirstChildOfClass("TextBox")
+                        if tb then return tb end
+                    end
                 end
             end
         end
@@ -650,4 +682,3 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
-
