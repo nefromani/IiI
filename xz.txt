@@ -211,9 +211,9 @@ local function setJobIDText(targetGui, text)
     end
 
     textBox:CaptureFocus()
-    task.wait(0.01)
+    task.wait(0.001)
     textBox.Text = text
-    task.wait(0.01)
+    task.wait(0.001)
     textBox:ReleaseFocus()
     print("[+] JobID вставлен: " .. text)
     return true
@@ -333,7 +333,7 @@ local function processBestJob()
         return
     end
 
-    task.wait(0.1) -- Идеальная задержка
+    task.wait(0.001) -- Идеальная задержка
 
     if not clickJoinButton(targetGui) then
         addLog("❌ Не удалось нажать Join")
@@ -362,7 +362,7 @@ local function processingLoop()
             currentBestJob = jobQueue[1]
             processBestJob()
         end
-        task.wait(0.05) -- Идеальная задержка
+        task.wait(0.01) -- Идеальная задержка
     end
 end
 
@@ -614,5 +614,3 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
-
-
