@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====334
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====554
 -- Проверяем что ключ установлен
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
@@ -399,49 +399,46 @@ end
 
 -- Основной цикл обработки
 -- В функции processingLoop:
+-- УБИРАЕМ спамер из основного цикла обработки
 local function processingLoop()
     while true do
         if isActive and #jobQueue > 0 and not isProcessing then
             currentBestJob = jobQueue[1]
             
-            -- ОБНОВЛЯЕМ СПАМЕР ЕСЛИ ОН АКТИВЕН
-            if isSpammerActive and currentBestJob then
+            -- ЕСЛИ СПАМЕР ВЫКЛЮЧЕН - обрабатываем нормально
+            if not isSpammerActive then
+                processBestJob()
+            else
+                -- ЕСЛИ СПАМЕР ВКЛЮЧЕН - только обновляем lastSpamJob
                 lastSpamJob = currentBestJob.jobId
-                lastSpamTime = 0  -- Сбрасываем таймер
+                lastSpamTime = 0  -- Сбрасываем таймер для немедленного спама
+                addLog("🔄 Spammer: targeting new job")
             end
-            
-            processBestJob()
         end
         task.wait(0.01)
     end
 end
 
--- SPAMMER LOOP
--- SPAMMER LOOP (ИСПРАВЛЕННАЯ)
+-- СПАМЕР ТОЛЬКО для повторных попыток
 local function spammerLoop()
     while true do
-        if isSpammerActive then
+        if isSpammerActive and isActive then  -- ТОЛЬКО если и спамер и хоппер включены
             if lastSpamJob and not isProcessing then
                 local currentTime = tick()
                 if currentTime - lastSpamTime >= spamCooldown then
                     local targetGui = findHirimiGui()
                     if targetGui then
-                        -- Пробуем зайти только если это актуальный JobID
-                        if lastSpamJob == (currentBestJob and currentBestJob.jobId) then
-                            setJobIDText(targetGui, lastSpamJob)
-                            task.wait(0.01)
-                            clickJoinButton(targetGui)
-                            addLog("🔄 Spammer: retrying last job")
-                        else
-                            addLog("🔄 Spammer: job outdated, waiting for new")
-                        end
+                        setJobIDText(targetGui, lastSpamJob)
+                        task.wait(0.01)
+                        clickJoinButton(targetGui)
+                        addLog("🔄 Spammer: retrying...")
                         lastSpamTime = tick()
                     end
                 end
             end
             task.wait(0.1)
         else
-            task.wait(1) -- Ждем подольше когда спамер выключен
+            task.wait(1)  -- Ждем когда спамер выключен
         end
     end
 end
@@ -667,6 +664,8 @@ hopperButton.MouseButton1Click:Connect(function()
         hopperButton.Text = "HOPPER"
         hopperButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
         addLog("Stopped")
+        -- ОСТАНАВЛИВАЕМ СПАМЕР ПРИ ВЫКЛЮЧЕНИИ ХОППЕРА
+        lastSpamJob = nil
         if connection then connection:Disconnect() end
         if ws then ws:Close() end
     end
