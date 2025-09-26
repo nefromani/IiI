@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====11
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -140,11 +140,10 @@ local currentBestJob = nil
 local isProcessing = false
 local lastProcessedJob = nil
 local isUILocked = true
-local cachedHirimiGui = nil
 
 -- ===== SPAMMER =====
 local isSpammerActive = false
-local spamCooldown = 2
+local spamCooldown = 5
 local lastSpamJob = nil
 local lastSpamTime = 0
 
@@ -174,23 +173,15 @@ local function findJobIDTextBox(gui)
     end
 end
 
-local function getHirimiGui()
-    if cachedHirimiGui and cachedHirimiGui.Parent then
-        return cachedHirimiGui
-    end
-
-    cachedHirimiGui = findHirimiGui()
-    return cachedHirimiGui
-end
-
-
 local function setJobIDText(targetGui, text)
     if not targetGui then return false end
     local textBox = findJobIDTextBox(targetGui)
     if not textBox then return false end
 
     textBox:CaptureFocus()
+    task.wait(0.01)
     textBox.Text = text
+    task.wait(0.01)
     textBox:ReleaseFocus()
     return true
 end
@@ -222,25 +213,25 @@ end
 local function clickJoinButton(targetGui)
     local button = findJoinButton(targetGui)
     if not button then return false end
-
+    
+    if button.Activated then
+        local ok = fireFirstConnectionOfSignal(button.Activated)
+        if ok then return true end
+    end
+    
     if VIM then
         local absPos = button.AbsolutePosition
         local absSize = button.AbsoluteSize
         local x = absPos.X + absSize.X/2
         local y = absPos.Y + absSize.Y/2
-
-        -- Клик через VirtualInputManager
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0)  -- минимальная задержка
+        task.wait(0.01)
         VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
         return true
     end
-
+    
     return false
 end
-
-
-
 
 local function insertSorted(jobData)
     if #jobQueue == 0 then
@@ -284,49 +275,47 @@ local function processBestJob()
     if not currentBestJob or isProcessing then return end
     isProcessing = true
 
-    local startTime = tick()
+    local startTime = tick()  -- момент, когда начали обрабатывать job
 
-    local targetGui = getHirimiGui()
+    local playersInfo = currentBestJob.players
+    local moneyInfo = currentBestJob.money
+    local nameInfo = currentBestJob.name
+    addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
+
+    local targetGui = findHirimiGui()
     if not targetGui then
         addLog("❌ HirimiGui не найден")
         isProcessing = false
         return
     end
 
-    -- Ввод JobID (старый рабочий способ)
     if not setJobIDText(targetGui, currentBestJob.jobId) then
         addLog("❌ Не удалось вставить JobID")
         isProcessing = false
         return
     end
 
-    task.wait(0.003) -- минимальная задержка между вводом и кликом
+    task.wait(0.1)
 
-    local button = findJoinButton(targetGui)
-    if not button then
-        addLog("❌ Не удалось найти кнопку Join")
+    if not clickJoinButton(targetGui) then
+        addLog("❌ Не удалось нажать Join")
         isProcessing = false
         return
     end
 
-    -- Нажатие кнопки (старый рабочий способ)
-    local upConnections = getconnections(button.MouseButton1Up)
-    if #upConnections > 0 then
-        for _, conn in ipairs(upConnections) do
-            conn:Fire()
-        end
-    else
-        button:MouseButton1Click()
-    end
-
-    local endTime = tick()
+    local endTime = tick()  -- момент, когда нажали Join
     local duration = endTime - startTime
     print(string.format("[AUFJoiner] Job processed in %.3f seconds", duration))
 
     lastProcessedJob = currentBestJob
+    if isSpammerActive then
+        lastSpamJob = currentBestJob.jobId
+        lastSpamTime = tick()
+    end
+    
     isProcessing = false
     currentBestJob = nil
-
+    
     -- Удаляем из очереди
     for i, job in ipairs(jobQueue) do
         if job.jobId == lastProcessedJob.jobId then
@@ -338,20 +327,16 @@ local function processBestJob()
 end
 
 
-
 -- ОСНОВНОЙ ЦИКЛ (только 1 раз заходит)
 local function processingLoop()
-    spawn(function()
-        while true do
-            if isActive and #jobQueue > 0 and not isProcessing then
-                currentBestJob = jobQueue[1]
-                processBestJob()
-            end
-            task.wait(0) -- минимальная задержка
+    while true do
+        if isActive and #jobQueue > 0 and not isProcessing then
+            currentBestJob = jobQueue[1]
+            processBestJob() -- ТОЛЬКО 1 РАЗ
         end
-    end)
+        task.wait(0.05)
+    end
 end
-
 
 -- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
 -- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
@@ -361,54 +346,53 @@ local function spammerLoop()
             local currentTime = tick()
             local elapsed = currentTime - lastSpamTime
 
-            if elapsed >= spamCooldown then
-                local targetGui = getHirimiGui()
+            if elapsed <= spamCooldown then
+                local targetGui = findHirimiGui()
                 if targetGui then
                     setJobIDText(targetGui, lastSpamJob)
-                    task.wait(0.001)
+                    task.wait(0.05)
                     clickJoinButton(targetGui)
                     addLog("🔄 Spammer retry: " .. lastSpamJob)
                 end
             end
         end
-        task.wait(0.001)
+        task.wait(0.1)
     end
 end
 
 
 
 local function connectWebSocket()
-    -- 🔹 Сразу подключаемся, без pcall, чтобы быстрее
-    ws = WebSocket.connect(WebSocketURL)
+    local success, socket = pcall(WebSocket.connect, WebSocketURL)
+    if success and socket then
+        ws = socket
+        connection = ws.OnMessage:Connect(function(msg)
+            if not isActive then return end
 
-    -- 🔹 Подключаем обработчик сообщений
-    connection = ws.OnMessage:Connect(function(msg)
-        if not isActive then return end
+            local name, money, players, jobId = msg:match("(.+)|(.+)|(.+)|(.+)")
+            if name and money and players and jobId then
+                local jobData = {
+                    name = name,
+                    money = money,
+                    players = players,
+                    jobId = jobId,
+                    score = calculateScore(players, money)
+                }
 
-        -- 🔹 Разбираем строку с серверного WS
-        local name, money, players, jobId = msg:match("(.+)|(.+)|(.+)|(.+)")
-        if name and money and players and jobId then
-            local jobData = {
-                name = name,
-                money = money,
-                players = players,
-                jobId = jobId,
-                score = calculateScore(players, money)
-            }
+                addLog("Added: " .. name .. " | " .. players .. " | " .. money .. "/sec")
+                addJob(jobData)
+            end
+        end)
 
-            addLog("Added: " .. name .. " | " .. players .. " | " .. money .. "/sec")
-            addJob(jobData)
-        end
-    end)
-
-    -- 🔹 Обработчик закрытия соединения
-    ws.OnClose:Connect(function()
-        addLog("Disconnected")
-    end)
-
-    addLog("✅ Connected to server")
+        ws.OnClose:Connect(function()
+            addLog("Disconnected")
+        end)
+        
+        addLog("✅ Connected to server")
+    else
+        addLog("❌ Connection failed")
+    end
 end
-
 
 local function createUI()
     local CoreGui = game:GetService("CoreGui")
@@ -580,7 +564,6 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
-
 
 
 
