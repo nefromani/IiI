@@ -235,7 +235,7 @@ end
         local x = absPos.X + absSize.X/2
         local y = absPos.Y + absSize.Y/2
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.001)
+        task.wait(0)
         VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
         return true
     end
@@ -344,7 +344,7 @@ local function processingLoop()
             currentBestJob = jobQueue[1]
             processBestJob() -- ТОЛЬКО 1 РАЗ
         end
-        task.wait(0.005)
+        task.wait(0.001)
     end
 end
 
@@ -360,13 +360,13 @@ local function spammerLoop()
                 local targetGui = getHirimiGui()
                 if targetGui then
                     setJobIDText(targetGui, lastSpamJob)
-                    task.wait(0.05)
+                    task.wait(0.001)
                     clickJoinButton(targetGui)
                     addLog("🔄 Spammer retry: " .. lastSpamJob)
                 end
             end
         end
-        task.wait(0.1)
+        task.wait(0.001)
     end
 end
 
