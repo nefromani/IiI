@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====55
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====88
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -154,6 +154,22 @@ end
 
 -- ===== ОБНОВЛЕННЫЕ ФУНКЦИИ ПОИСКА ИНТЕРФЕЙСА =====
 
+-- Кешируем элементы, чтобы не искать их заново
+local cachedJobIDTextBox = nil
+local cachedJoinButton = nil
+
+local function getJobIDTextBox()
+    if cachedJobIDTextBox and cachedJobIDTextBox.Parent then
+        return cachedJobIDTextBox
+    end
+
+    local tb = findJobIDTextBox()
+    if tb then
+        cachedJobIDTextBox = tb
+    end
+    return tb
+end
+
 -- Функция для поиска точного TextBox (новая версия)
 local function findJobIDTextBox()
     local coreGui = game:GetService("CoreGui")
@@ -219,6 +235,18 @@ local function fallbackFindJobIDTextBox()
     
     prints("❌ Job-ID TextBox не найден запасным способом")
     return nil
+end
+
+local function getJoinButton()
+    if cachedJoinButton and cachedJoinButton.Parent then
+        return cachedJoinButton
+    end
+
+    local btn = findJoinButton()
+    if btn then
+        cachedJoinButton = btn
+    end
+    return btn
 end
 
 -- Функция поиска кнопки Join Job-ID (новая версия)
@@ -320,7 +348,7 @@ end
 local function setJobIDText(jobId)
     
     -- Способ 1: Точный путь
-    local textBox = findJobIDTextBox()
+    local textBox = getJobIDTextBox(targetGui)
     
     -- Способ 2: Запасной поиск
     if not textBox then
@@ -357,7 +385,7 @@ end
 local function clickJoinButton()
     
     -- Способ 1: Точный путь
-    local button = findJoinButton()
+    local button = getJoinButton(targetGui)
     
     -- Способ 2: Запасной поиск
     if not button then
@@ -748,5 +776,6 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
+
 
 
