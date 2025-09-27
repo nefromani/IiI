@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====000
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -152,52 +152,182 @@ local function addLog(message)
     logText.Text = "→ " .. message
 end
 
-local function findHirimiGui()
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return nil end
-    return playerGui:FindFirstChild("HirimiGui")
+-- ===== ОБНОВЛЕННЫЕ ФУНКЦИИ ПОИСКА ИНТЕРФЕЙСА =====
+
+-- Функция для поиска точного TextBox (новая версия)
+local function findJobIDTextBox()
+    prints("Ищу Job-ID TextBox по новому пути...")
+    
+    local coreGui = game:GetService("CoreGui")
+    
+    -- Новый путь: CoreGui.ScreenGui.Main.Main.Server.ScrollingFrame.Job-ID Input.Main.Input
+    local screenGui = coreGui:FindFirstChild("ScreenGui")
+    if not screenGui then
+        prints("❌ ScreenGui не найден")
+        return nil
+    end
+    
+    local main1 = screenGui:FindFirstChild("Main")
+    if not main1 then
+        prints("❌ Первый Main не найден")
+        return nil
+    end
+    
+    local main2 = main1:FindFirstChild("Main")
+    if not main2 then
+        prints("❌ Второй Main не найден")
+        return nil
+    end
+    
+    local server = main2:FindFirstChild("Server")
+    if not server then
+        prints("❌ Server не найден")
+        return nil
+    end
+    
+    local scrollingFrame = server:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then
+        prints("❌ ScrollingFrame не найден")
+        return nil
+    end
+    
+    local jobIDInput = scrollingFrame:FindFirstChild("Job-ID Input")
+    if not jobIDInput then
+        prints("❌ Job-ID Input не найден")
+        return nil
+    end
+    
+    local mainFrame = jobIDInput:FindFirstChild("Main")
+    if not mainFrame then
+        prints("❌ Main внутри Job-ID Input не найден")
+        return nil
+    end
+    
+    local inputTextBox = mainFrame:FindFirstChild("Input")
+    if not inputTextBox or not inputTextBox:IsA("TextBox") then
+        prints("❌ Input TextBox не найден")
+        return nil
+    end
+    
+    prints("✅ Input TextBox найден: " .. inputTextBox:GetFullName())
+    return inputTextBox
 end
 
-local function findJobIDTextBox(gui)
-    if not gui then return nil end
-    for _, d in ipairs(gui:GetDescendants()) do
-        if d:IsA("TextLabel") and d.Text == "Job-ID Input" then
-            local parent = d.Parent
-            for _, child in ipairs(parent:GetChildren()) do
-                if child:IsA("Frame") then
-                    local tb = child:FindFirstChildOfClass("TextBox")
-                    if tb then return tb end
-                end
+-- Запасной поиск TextBox
+local function fallbackFindJobIDTextBox()
+    prints("Запасной поиск TextBox...")
+    
+    local coreGui = game:GetService("CoreGui")
+    
+    -- Ищем TextBox с именем "Input" в пути содержащем Job-ID
+    for _, descendant in pairs(coreGui:GetDescendants()) do
+        if descendant:IsA("TextBox") and descendant.Name == "Input" then
+            local fullName = descendant:GetFullName()
+            if string.find(fullName, "Job%-ID") then
+                prints("✅ Найден Job-ID TextBox: " .. fullName)
+                return descendant
             end
         end
     end
+    
+    prints("❌ Job-ID TextBox не найден запасным способом")
+    return nil
 end
 
-local function setJobIDText(targetGui, text)
-    if not targetGui then return false end
-    local textBox = findJobIDTextBox(targetGui)
-    if not textBox then return false end
-
-    textBox:CaptureFocus()
-    textBox.Text = text
-    textBox:ReleaseFocus()
-    return true
+-- Функция поиска кнопки Join Job-ID (новая версия)
+local function findJoinButton()
+    prints("Ищу кнопку Join Job-ID...")
+    
+    local coreGui = game:GetService("CoreGui")
+    
+    -- Новый путь: CoreGui.ScreenGui.Main.Main.Server.ScrollingFrame.Join Job-ID
+    local screenGui = coreGui:FindFirstChild("ScreenGui")
+    if not screenGui then
+        prints("❌ ScreenGui не найден")
+        return nil
+    end
+    
+    local main1 = screenGui:FindFirstChild("Main")
+    if not main1 then
+        prints("❌ Первый Main не найден")
+        return nil
+    end
+    
+    local main2 = main1:FindFirstChild("Main")
+    if not main2 then
+        prints("❌ Второй Main не найден")
+        return nil
+    end
+    
+    local server = main2:FindFirstChild("Server")
+    if not server then
+        prints("❌ Server не найден")
+        return nil
+    end
+    
+    local scrollingFrame = server:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then
+        prints("❌ ScrollingFrame не найден")
+        return nil
+    end
+    
+    local joinJobID = scrollingFrame:FindFirstChild("Join Job-ID")
+    if not joinJobID then
+        prints("❌ Join Job-ID не найден")
+        return nil
+    end
+    
+    -- Ищем кнопку внутри Join Job-ID
+    local button = joinJobID:FindFirstChildOfClass("TextButton") or joinJobID:FindFirstChildOfClass("ImageButton")
+    if button then
+        prints("✅ Кнопка найдена: " .. button:GetFullName() .. " (" .. button.ClassName .. ")")
+        return button
+    end
+    
+    -- Если кнопка не найдена, возможно сам Join Job-ID кликабельный
+    prints("Прямая кнопка не найдена, проверяю сам Join Job-ID элемент")
+    return joinJobID
 end
 
-local function findJoinButton(gui)
-    if not gui then return nil end
-    for _, d in ipairs(gui:GetDescendants()) do
-        if d:IsA("TextLabel") and d.Text == "Join Job-ID" then
-            local parent = d.Parent
-            for _, child in ipairs(parent:GetChildren()) do
-                if child:IsA("TextButton") then
-                    return child
+-- Запасной поиск кнопки Join
+local function fallbackFindJoinButton()
+    prints("Запасной поиск Join кнопки...")
+    
+    local coreGui = game:GetService("CoreGui")
+    
+    -- Ищем элементы с "Join Job-ID" в имени или тексте
+    for _, descendant in pairs(coreGui:GetDescendants()) do
+        local name = descendant.Name or ""
+        local text = ""
+        
+        if descendant:IsA("TextLabel") then
+            text = descendant.Text or ""
+        elseif descendant:IsA("TextButton") then
+            text = descendant.Text or ""
+        end
+        
+        if name == "Join Job-ID" or text == "Join Job-ID" then
+            prints("✅ Найден элемент Join Job-ID: " .. descendant:GetFullName())
+            
+            -- Если это не кнопка, ищем кнопку рядом
+            if not (descendant:IsA("TextButton") or descendant:IsA("ImageButton")) then
+                local button = descendant:FindFirstChildOfClass("TextButton") or descendant:FindFirstChildOfClass("ImageButton")
+                if button then
+                    return button
+                else
+                    return descendant
                 end
+            else
+                return descendant
             end
         end
     end
+    
+    prints("❌ Join кнопка не найдена запасным способом")
+    return nil
 end
 
+-- Функция клика по кнопке (проверенный метод)
 local function fireFirstConnectionOfSignal(sig)
     if type(sig) ~= "userdata" then return false end
     local ok_get, _ = pcall(function() return getconnections end)
@@ -208,35 +338,134 @@ local function fireFirstConnectionOfSignal(sig)
     return success
 end
 
-local function clickJoinButton(targetGui)
-    local button = findJoinButton(targetGui)
-    if not button then return false end
-
-    -- Прямое срабатывание всех коннекшенов Activated
-    if button.Activated then
-        pcall(function()
-            for _, con in ipairs(getconnections(button.Activated)) do
-                con:Fire()
-            end
-        end)
-        return true
+-- Функция заполнения Job ID (обновленная)
+local function setJobIDText(jobId)
+    prints("Заполняю Job ID: " .. jobId)
+    
+    -- Способ 1: Точный путь
+    local textBox = findJobIDTextBox()
+    
+    -- Способ 2: Запасной поиск
+    if not textBox then
+        prints("Запасной поиск TextBox...")
+        textBox = fallbackFindJobIDTextBox()
     end
-
-    -- Если VirtualInputManager доступен, кликаем через него
-    if VIM then
-        local absPos = button.AbsolutePosition
-        local absSize = button.AbsoluteSize
-        local x = absPos.X + absSize.X / 2
-        local y = absPos.Y + absSize.Y / 2
-        VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.003) -- минимальная задержка
-        VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
-        return true
+    
+    if not textBox then
+        prints("❌ TextBox не найден")
+        return false
     end
-
-    return false
+    
+    -- Метод 1: Стандартный способ
+    textBox:CaptureFocus()
+    task.wait(0.05)
+    textBox.Text = jobId
+    task.wait(0.05)
+    textBox:ReleaseFocus()
+    
+    -- Проверяем что текст установился
+    if textBox.Text == jobId then
+        prints("✅ Job ID успешно вставлен: " .. jobId)
+        return true
+    else
+        prints("⚠️ Текст не установился стандартным способом, пробую альтернативный...")
+        
+        -- Метод 2: Прямая установка без фокуса
+        textBox.Text = jobId
+        
+        if textBox.Text == jobId then
+            prints("✅ Job ID вставлен альтернативным способом: " .. jobId)
+            return true
+        else
+            prints("❌ Не удалось установить текст")
+            return false
+        end
+    end
 end
 
+-- Функция клика по кнопке Join (обновленная)
+local function clickJoinButton()
+    prints("Пытаюсь нажать кнопку Join...")
+    
+    -- Способ 1: Точный путь
+    local button = findJoinButton()
+    
+    -- Способ 2: Запасной поиск
+    if not button then
+        prints("Запасной поиск кнопки...")
+        button = fallbackFindJoinButton()
+    end
+    
+    if not button then
+        prints("❌ Кнопка не найдена")
+        return false
+    end
+    
+    prints("Найдена кнопка: " .. button:GetFullName() .. " (" .. button.ClassName .. ")")
+    
+    -- Способ 1: getconnections для Activated (самый надежный)
+    if button.Activated then
+        local ok = fireFirstConnectionOfSignal(button.Activated)
+        if ok then
+            prints("✅ Кнопка нажата через Activated connection")
+            return true
+        end
+    end
+    
+    -- Способ 2: getconnections для MouseButton1Up
+    if button.MouseButton1Up then
+        local ok = fireFirstConnectionOfSignal(button.MouseButton1Up)
+        if ok then
+            prints("✅ Кнопка нажата через MouseButton1Up connection")
+            return true
+        end
+    end
+    
+    -- Способ 3: getconnections для MouseButton1Click
+    if button.MouseButton1Click then
+        local ok = fireFirstConnectionOfSignal(button.MouseButton1Click)
+        if ok then
+            prints("✅ Кнопка нажата через MouseButton1Click connection")
+            return true
+        end
+    end
+    
+    -- Способ 4: Activate метод
+    if button.Activate then
+        local success, err = pcall(function() 
+            button:Activate() 
+        end)
+        if success then
+            prints("✅ Кнопка нажата через Activate")
+            return true
+        else
+            prints("⚠️ Ошибка Activate: " .. tostring(err))
+        end
+    end
+    
+    -- Способ 5: VIM fallback
+    if VIM and button.AbsolutePosition and button.AbsoluteSize then
+        local success, err = pcall(function()
+            local absPos = button.AbsolutePosition
+            local absSize = button.AbsoluteSize
+            local x = absPos.X + absSize.X/2
+            local y = absPos.Y + absSize.Y/2
+            VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
+            task.wait(0.05)
+            VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
+        end)
+        
+        if success then
+            prints("✅ Кнопка нажата через VIM")
+            return true
+        else
+            prints("⚠️ Ошибка VIM: " .. tostring(err))
+        end
+    end
+    
+    prints("❌ Все способы клика не сработали")
+    return false
+end
 
 local function insertSorted(jobData)
     if #jobQueue == 0 then
@@ -275,42 +504,37 @@ local function addJob(jobData)
     end
 end
 
--- ОСНОВНАЯ ЛОГИКА (1 раз заходит и ждет)
+-- ОСНОВНАЯ ЛОГИКА (обновленная)
 local function processBestJob()
     if not currentBestJob or isProcessing then return end
     isProcessing = true
 
-    local startTime = tick()  -- момент, когда начали обрабатывать job
+    local startTime = tick()
 
     local playersInfo = currentBestJob.players
     local moneyInfo = currentBestJob.money
     local nameInfo = currentBestJob.name
     addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
 
-    local targetGui = findHirimiGui()
-    if not targetGui then
-        addLog("❌ HirimiGui не найден")
-        isProcessing = false
-        return
-    end
-
-    if not setJobIDText(targetGui, currentBestJob.jobId) then
+    -- Шаг 1: Заполняем Job ID
+    if not setJobIDText(currentBestJob.jobId) then
         addLog("❌ Не удалось вставить JobID")
         isProcessing = false
         return
     end
 
-    task.wait(0)
+    task.wait(0.1)
 
-    if not clickJoinButton(targetGui) then
+    -- Шаг 2: Нажимаем кнопку Join
+    if not clickJoinButton() then
         addLog("❌ Не удалось нажать Join")
         isProcessing = false
         return
     end
 
-    local endTime = tick()  -- момент, когда нажали Join
+    local endTime = tick()
     local duration = endTime - startTime
-    print(string.format("[AUFJoiner] Job processed in %.3f seconds", duration))
+    prints("Job processed in " .. string.format("%.3f", duration) .. " seconds")
 
     lastProcessedJob = currentBestJob
     if isSpammerActive then
@@ -331,20 +555,18 @@ local function processBestJob()
     end
 end
 
-
--- ОСНОВНОЙ ЦИКЛ (только 1 раз заходит)
+-- ОСНОВНОЙ ЦИКЛ
 local function processingLoop()
     while true do
         if isActive and #jobQueue > 0 and not isProcessing then
             currentBestJob = jobQueue[1]
-            processBestJob() -- ТОЛЬКО 1 РАЗ
+            processBestJob()
         end
         task.wait(0.05)
     end
 end
 
--- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
--- ИСПРАВЛЕННЫЙ СПАМЕР ЦИКЛ
+-- СПАМЕР ЦИКЛ
 local function spammerLoop()
     while true do
         if isSpammerActive and isActive and lastSpamJob then
@@ -352,20 +574,15 @@ local function spammerLoop()
             local elapsed = currentTime - lastSpamTime
 
             if elapsed <= spamCooldown then
-                local targetGui = findHirimiGui()
-                if targetGui then
-                    setJobIDText(targetGui, lastSpamJob)
-                    task.wait(0.05)
-                    clickJoinButton(targetGui)
-                    addLog("🔄 Spammer retry: " .. lastSpamJob)
-                end
+                setJobIDText(lastSpamJob)
+                task.wait(0.05)
+                clickJoinButton()
+                addLog("🔄 Spammer retry: " .. lastSpamJob)
             end
         end
         task.wait(0.1)
     end
 end
-
-
 
 local function connectWebSocket()
     local success, socket = pcall(WebSocket.connect, WebSocketURL)
@@ -439,8 +656,8 @@ local function createUI()
     spammerButton = Instance.new("TextButton")
     spammerButton.Text = "S"
     spammerButton.Size = UDim2.new(0, 30, 0, 30)
-    spammerButton.Position = UDim2.new(0, 10, 0, 15) -- СЛЕВА
-    spammerButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200) -- СИНИЙ ЦВЕТ
+    spammerButton.Position = UDim2.new(0, 10, 0, 15)
+    spammerButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200)
     spammerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     spammerButton.Font = Enum.Font.GothamBold
     spammerButton.TextSize = 14
@@ -457,7 +674,7 @@ local function createUI()
     lockButton = Instance.new("TextButton")
     lockButton.Text = "🔒"
     lockButton.Size = UDim2.new(0, 40, 0, 40)
-    lockButton.Position = UDim2.new(1, -45, 0, 10) -- СПРАВА
+    lockButton.Position = UDim2.new(1, -45, 0, 10)
     lockButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
     lockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     lockButton.Font = Enum.Font.GothamBold
@@ -549,10 +766,10 @@ end)
 spammerButton.MouseButton1Click:Connect(function()
     isSpammerActive = not isSpammerActive
     if isSpammerActive then
-        spammerButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200) -- ЯРКО-СИНИЙ при включении
+        spammerButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
         addLog("🔄 Spammer: ON (5s retry)")
     else
-        spammerButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200) -- ОБЫЧНЫЙ СИНИЙ при выключении
+        spammerButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200)
         addLog("🔄 Spammer: OFF (single attempt)")
     end
 end)
@@ -569,7 +786,3 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
-
-
-
-
