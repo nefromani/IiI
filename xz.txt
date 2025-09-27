@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====662562
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -233,34 +233,105 @@ local function fireFirstConnectionOfSignal(sig)
     return success
 end
 
-local function clickJoinButton(targetGui)
-    local button = findJoinButton(targetGui)
-    if not button then return false end
+-- Универсальный поиск TextBox JobID с fallback
+local function autoFillJobID(jobID)
+    local scrollingFrame = findTargetGui()
+    if not scrollingFrame then
+        prints("❌ ScrollingFrame не найден")
+        return false
+    end
 
-    -- Прямое срабатывание всех коннекшенов Activated
-    if button.Activated then
-        pcall(function()
-            for _, con in ipairs(getconnections(button.Activated)) do
-                con:Fire()
+    -- Способ 1: точный путь
+    local textBox
+    local jobIDInput = scrollingFrame:FindFirstChild("Job-ID Input")
+    if jobIDInput then
+        local mainFrame = jobIDInput:FindFirstChild("Main")
+        if mainFrame then
+            textBox = mainFrame:FindFirstChild("Input")
+        end
+    end
+
+    -- Способ 2: fallback поиск
+    if not textBox then
+        for _, desc in pairs(scrollingFrame:GetDescendants()) do
+            if desc:IsA("TextBox") and desc.Name == "Input" and string.find(desc:GetFullName(), "Job%-ID") then
+                textBox = desc
+                break
             end
-        end)
+        end
+    end
+
+    if not textBox then
+        prints("❌ TextBox для Job-ID не найден")
+        return false
+    end
+
+    -- Вставка JobID
+    textBox:CaptureFocus()
+    task.wait(0.05)
+    textBox.Text = jobID
+    task.wait(0.05)
+    textBox:ReleaseFocus()
+
+    -- Проверка
+    if textBox.Text == jobID then
+        prints("[SUCCESS] JobID вставлен: " .. jobID)
+        return true
+    else
+        prints("⚠️ Не удалось вставить JobID")
+        return false
+    end
+end
+
+-- Универсальный клик Join кнопки с fallback
+local function autoClickJoin()
+    local scrollingFrame = findTargetGui()
+    if not scrollingFrame then return false end
+
+    local joinButton
+    local joinElement = scrollingFrame:FindFirstChild("Join Job-ID")
+    if joinElement then
+        joinButton = joinElement:FindFirstChildOfClass("TextButton") or joinElement:FindFirstChildOfClass("ImageButton") or joinElement
+    else
+        for _, desc in pairs(scrollingFrame:GetDescendants()) do
+            if (desc.Name == "Join Job-ID" or desc:IsA("TextButton") or desc:IsA("ImageButton")) then
+                joinButton = desc
+                break
+            end
+        end
+    end
+
+    if not joinButton then
+        prints("❌ Кнопка Join не найдена")
+        return false
+    end
+
+    -- Метод 1: Activated connection
+    if joinButton.Activated then
+        for _, con in ipairs(getconnections(joinButton.Activated)) do
+            pcall(function() con:Fire() end)
+        end
+        prints("[SUCCESS] Join нажата через Activated")
         return true
     end
 
-    -- Если VirtualInputManager доступен, кликаем через него
-    if VIM then
-        local absPos = button.AbsolutePosition
-        local absSize = button.AbsoluteSize
-        local x = absPos.X + absSize.X / 2
-        local y = absPos.Y + absSize.Y / 2
+    -- Метод 2: VIM fallback
+    if VIM and joinButton.AbsolutePosition and joinButton.AbsoluteSize then
+        local absPos = joinButton.AbsolutePosition
+        local absSize = joinButton.AbsoluteSize
+        local x = absPos.X + absSize.X/2
+        local y = absPos.Y + absSize.Y/2
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.003) -- минимальная задержка
+        task.wait(0.05)
         VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
+        prints("[SUCCESS] Join нажата через VIM")
         return true
     end
 
+    prints("⚠️ Не удалось нажать Join")
     return false
 end
+
 
 
 local function insertSorted(jobData)
@@ -312,19 +383,20 @@ local function processBestJob()
     local nameInfo = currentBestJob.name
     addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
 
-if not setJobIDText(nil, currentBestJob.jobId) then
-        addLog("❌ Не удалось вставить JobID")
-        isProcessing = false
-        return
-    end
+if not autoFillJobID(currentBestJob.jobId) then
+    addLog("❌ Не удалось вставить JobID")
+    isProcessing = false
+    return
+end
 
-    task.wait(0)
+task.wait(0.05)
 
-    if not clickJoinButton(targetGui) then
-        addLog("❌ Не удалось нажать Join")
-        isProcessing = false
-        return
-    end
+if not autoClickJoin() then
+    addLog("❌ Не удалось нажать Join")
+    isProcessing = false
+    return
+end
+
 
     local endTime = tick()  -- момент, когда нажали Join
     local duration = endTime - startTime
