@@ -337,9 +337,7 @@ local function setJobIDText(jobId)
     
     -- Метод 1: Стандартный способ
     textBox:CaptureFocus()
-    task.wait(0.05)
     textBox.Text = jobId
-    task.wait(0.05)
     textBox:ReleaseFocus()
     
     -- Проверяем что текст установился
@@ -383,7 +381,6 @@ local function clickJoinButton()
     if button.Activated then
         local ok = fireFirstConnectionOfSignal(button.Activated)
         if ok then
-            prints("✅ Кнопка нажата через Activated connection")
             return true
         end
     end
@@ -392,7 +389,6 @@ local function clickJoinButton()
     if button.MouseButton1Up then
         local ok = fireFirstConnectionOfSignal(button.MouseButton1Up)
         if ok then
-            prints("✅ Кнопка нажата через MouseButton1Up connection")
             return true
         end
     end
@@ -401,7 +397,6 @@ local function clickJoinButton()
     if button.MouseButton1Click then
         local ok = fireFirstConnectionOfSignal(button.MouseButton1Click)
         if ok then
-            prints("✅ Кнопка нажата через MouseButton1Click connection")
             return true
         end
     end
@@ -412,10 +407,8 @@ local function clickJoinButton()
             button:Activate() 
         end)
         if success then
-            prints("✅ Кнопка нажата через Activate")
             return true
         else
-            prints("⚠️ Ошибка Activate: " .. tostring(err))
         end
     end
     
@@ -427,12 +420,10 @@ local function clickJoinButton()
             local x = absPos.X + absSize.X/2
             local y = absPos.Y + absSize.Y/2
             VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-            task.wait(0.05)
             VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
         end)
         
         if success then
-            prints("✅ Кнопка нажата через VIM")
             return true
         else
             prints("⚠️ Ошибка VIM: " .. tostring(err))
@@ -499,7 +490,7 @@ local function processBestJob()
         return
     end
 
-    task.wait(0.1)
+    task.wait(0.001)
 
     -- Шаг 2: Нажимаем кнопку Join
     if not clickJoinButton() then
@@ -538,7 +529,7 @@ local function processingLoop()
             currentBestJob = jobQueue[1]
             processBestJob()
         end
-        task.wait(0.05)
+        task.wait(0.001)
     end
 end
 
@@ -551,12 +542,12 @@ local function spammerLoop()
 
             if elapsed <= spamCooldown then
                 setJobIDText(lastSpamJob)
-                task.wait(0.05)
+                task.wait(0.001)
                 clickJoinButton()
                 addLog("🔄 Spammer retry: " .. lastSpamJob)
             end
         end
-        task.wait(0.1)
+        task.wait(0.001)
     end
 end
 
