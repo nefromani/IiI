@@ -545,8 +545,6 @@ RunService.Heartbeat:Connect(function()
 end)
 
 
-spammerLoop()
-
 
 local function connectWebSocket()
     local success, socket = pcall(WebSocket.connect, WebSocketURL)
@@ -750,5 +748,6 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
+
 
 
