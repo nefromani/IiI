@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====55
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -104,55 +104,17 @@ local function waitForFullLoad()
     return CoreGui
 end
 
--- ===== ТВОЙ ОСНОВНОЙ СКРИПТ =====
-local WebSocketURL = "ws://127.0.0.1:51948"
+-- ===== КЭШИРОВАНИЕ UI ЭЛЕМЕНТОВ =====
+local cachedTextBox = nil
+local cachedJoinButton = nil
+local lastCacheTime = 0
+local CACHE_DURATION = 5 -- Кэш на 5 секунд
 
 local function prints(str)
     print("[AUFJoiner]: " .. str)
 end
 
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local VIM = (pcall(function() return game:GetService("VirtualInputManager") end) and game:GetService("VirtualInputManager")) or nil
-
-local function calculateScore(players, money)
-    local currentPlayers = tonumber(players:match("(%d+)/")) or 8
-    local freeSlots = 8 - currentPlayers
-    local moneyValue = tonumber(money:match("%d+")) or 0
-    
-    if freeSlots >= 5 then
-        return freeSlots * 2000000 + moneyValue * 500
-    elseif freeSlots >= 3 then
-        return freeSlots * 1500000 + moneyValue * 1000
-    else
-        return freeSlots * 500000 + moneyValue * 2000
-    end
-end
-
-local isActive = false
-local ws = nil
-local connection = nil
-local menuGui, hopperButton, lockButton, logText, discordLabel, spammerButton
-local jobQueue = {}
-local jobsByName = {}
-local currentBestJob = nil
-local isProcessing = false
-local lastProcessedJob = nil
-local isUILocked = true
-
--- ===== SPAMMER =====
-local isSpammerActive = false
-local spamCooldown = 5
-local lastSpamJob = nil
-local lastSpamTime = 0
-
-local function addLog(message)
-    if not logText then return end
-    logText.Text = "→ " .. message
-end
-
--- ===== ОБНОВЛЕННЫЕ ФУНКЦИИ ПОИСКА ИНТЕРФЕЙСА =====
+-- ===== ОРИГИНАЛЬНЫЕ ФУНКЦИИ ПОИСКА ИНТЕРФЕЙСА =====
 
 -- Функция для поиска точного TextBox (новая версия)
 local function findJobIDTextBox()
@@ -204,7 +166,6 @@ end
 
 -- Запасной поиск TextBox
 local function fallbackFindJobIDTextBox()
-    
     local coreGui = game:GetService("CoreGui")
     
     -- Ищем TextBox с именем "Input" в пути содержащем Job-ID
@@ -223,7 +184,6 @@ end
 
 -- Функция поиска кнопки Join Job-ID (новая версия)
 local function findJoinButton()
-    
     local coreGui = game:GetService("CoreGui")
     
     -- Новый путь: CoreGui.ScreenGui.Main.Main.Server.ScrollingFrame.Join Job-ID
@@ -271,7 +231,6 @@ end
 
 -- Запасной поиск кнопки Join
 local function fallbackFindJoinButton()
-    
     local coreGui = game:GetService("CoreGui")
     
     -- Ищем элементы с "Join Job-ID" в имени или тексте
@@ -286,7 +245,6 @@ local function fallbackFindJoinButton()
         end
         
         if name == "Join Job-ID" or text == "Join Job-ID" then
-            
             -- Если это не кнопка, ищем кнопку рядом
             if not (descendant:IsA("TextButton") or descendant:IsA("ImageButton")) then
                 local button = descendant:FindFirstChildOfClass("TextButton") or descendant:FindFirstChildOfClass("ImageButton")
@@ -305,6 +263,103 @@ local function fallbackFindJoinButton()
     return nil
 end
 
+-- ===== КЭШИРОВАННЫЕ ФУНКЦИИ (НОВЫЕ!) =====
+
+-- Функция получения кэшированных элементов
+local function getCachedElements()
+    local currentTime = tick()
+    
+    -- Проверяем актуальность кэша
+    if currentTime - lastCacheTime < CACHE_DURATION and cachedTextBox and cachedJoinButton then
+        -- Проверяем что элементы еще существуют
+        if cachedTextBox.Parent and cachedJoinButton.Parent then
+            prints("📦 Используем кэшированные элементы")
+            return cachedTextBox, cachedJoinButton
+        else
+            prints("⚠️ Кэшированные элементы исчезли, обновляем кэш")
+        end
+    end
+    
+    -- Обновляем кэш
+    prints("🔍 Обновляем кэш UI элементов...")
+    
+    -- Способ 1: Точный путь для TextBox
+    cachedTextBox = findJobIDTextBox()
+    
+    -- Способ 2: Запасной поиск для TextBox
+    if not cachedTextBox then
+        cachedTextBox = fallbackFindJobIDTextBox()
+    end
+    
+    -- Способ 1: Точный путь для Button
+    cachedJoinButton = findJoinButton()
+    
+    -- Способ 2: Запасной поиск для Button
+    if not cachedJoinButton then
+        cachedJoinButton = fallbackFindJoinButton()
+    end
+    
+    if cachedTextBox and cachedJoinButton then
+        lastCacheTime = currentTime
+        prints("✅ Кэш обновлен успешно!")
+        return cachedTextBox, cachedJoinButton
+    else
+        prints("❌ Не удалось найти UI элементы для кэширования")
+        return nil, nil
+    end
+end
+
+-- Функция принудительного обновления кэша
+local function refreshCache()
+    prints("🔄 Принудительное обновление кэша...")
+    lastCacheTime = 0 -- Сбрасываем время кэша
+    return getCachedElements()
+end
+
+-- ===== ТВОЙ ОСНОВНОЙ СКРИПТ =====
+local WebSocketURL = "ws://127.0.0.1:51948"
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local VIM = (pcall(function() return game:GetService("VirtualInputManager") end) and game:GetService("VirtualInputManager")) or nil
+
+local function calculateScore(players, money)
+    local currentPlayers = tonumber(players:match("(%d+)/")) or 8
+    local freeSlots = 8 - currentPlayers
+    local moneyValue = tonumber(money:match("%d+")) or 0
+    
+    if freeSlots >= 5 then
+        return freeSlots * 2000000 + moneyValue * 500
+    elseif freeSlots >= 3 then
+        return freeSlots * 1500000 + moneyValue * 1000
+    else
+        return freeSlots * 500000 + moneyValue * 2000
+    end
+end
+
+local isActive = false
+local ws = nil
+local connection = nil
+local menuGui, hopperButton, lockButton, logText, discordLabel, spammerButton
+local jobQueue = {}
+local jobsByName = {}
+local currentBestJob = nil
+local isProcessing = false
+local lastProcessedJob = nil
+local isUILocked = true
+
+-- ===== SPAMMER =====
+local isSpammerActive = false
+local spamCooldown = 5
+local lastSpamJob = nil
+local lastSpamTime = 0
+
+local function addLog(message)
+    if not logText then return end
+    logText.Text = "→ " .. message
+end
+
 -- Функция клика по кнопке (проверенный метод)
 local function fireFirstConnectionOfSignal(sig)
     if type(sig) ~= "userdata" then return false end
@@ -316,22 +371,21 @@ local function fireFirstConnectionOfSignal(sig)
     return success
 end
 
--- Функция заполнения Job ID (обновленная)
+-- ===== КЭШИРОВАННЫЕ ФУНКЦИИ РАБОТЫ С UI =====
+
+-- Функция заполнения Job ID (КЭШИРОВАННАЯ версия)
 local function setJobIDText(jobId)
-    
-    -- Способ 1: Точный путь
-    local textBox = findJobIDTextBox()
-    
-    -- Способ 2: Запасной поиск
-    if not textBox then
-        textBox = fallbackFindJobIDTextBox()
-    end
+    local textBox, _ = getCachedElements()
     
     if not textBox then
-        return false
+        prints("❌ TextBox не найден в кэше, пробуем обновить...")
+        textBox, _ = refreshCache()
+        if not textBox then
+            return false
+        end
     end
     
-    -- Метод 1: Стандартный способ
+    -- Метод 1: Стандартный способ с фокусировкой (как ты сказал - обязательна!)
     textBox:CaptureFocus()
     textBox.Text = jobId
     textBox:ReleaseFocus()
@@ -340,40 +394,35 @@ local function setJobIDText(jobId)
     if textBox.Text == jobId then
         return true
     else
-
-        
-        -- Метод 2: Прямая установка без фокуса
+        -- Метод 2: Прямая установка без фокуса (запасной вариант)
         textBox.Text = jobId
         
         if textBox.Text == jobId then
             return true
         else
+            prints("❌ Не удалось установить текст в TextBox")
             return false
         end
     end
 end
 
--- Функция клика по кнопке Join (обновленная)
+-- Функция клика по кнопке Join (КЭШИРОВАННАЯ версия)
 local function clickJoinButton()
-    
-    -- Способ 1: Точный путь
-    local button = findJoinButton()
-    
-    -- Способ 2: Запасной поиск
-    if not button then
-        button = fallbackFindJoinButton()
-    end
+    local _, button = getCachedElements()
     
     if not button then
-        prints("❌ Кнопка не найдена")
-        return false
+        prints("❌ Button не найден в кэше, пробуем обновить...")
+        _, button = refreshCache()
+        if not button then
+            return false
+        end
     end
-    
     
     -- Способ 1: getconnections для Activated (самый надежный)
     if button.Activated then
         local ok = fireFirstConnectionOfSignal(button.Activated)
         if ok then
+            prints("✅ Клик через Activated successful")
             return true
         end
     end
@@ -382,6 +431,7 @@ local function clickJoinButton()
     if button.MouseButton1Up then
         local ok = fireFirstConnectionOfSignal(button.MouseButton1Up)
         if ok then
+            prints("✅ Клик через MouseButton1Up successful")
             return true
         end
     end
@@ -390,6 +440,7 @@ local function clickJoinButton()
     if button.MouseButton1Click then
         local ok = fireFirstConnectionOfSignal(button.MouseButton1Click)
         if ok then
+            prints("✅ Клик через MouseButton1Click successful")
             return true
         end
     end
@@ -400,8 +451,10 @@ local function clickJoinButton()
             button:Activate() 
         end)
         if success then
+            prints("✅ Клик через Activate successful")
             return true
         else
+            prints("⚠️ Ошибка Activate: " .. tostring(err))
         end
     end
     
@@ -417,6 +470,7 @@ local function clickJoinButton()
         end)
         
         if success then
+            prints("✅ Клик через VIM successful")
             return true
         else
             prints("⚠️ Ошибка VIM: " .. tostring(err))
@@ -464,7 +518,7 @@ local function addJob(jobData)
     end
 end
 
--- ОСНОВНАЯ ЛОГИКА (обновленная)
+-- ОСНОВНАЯ ЛОГИКА (теперь с кэшированием!)
 local function processBestJob()
     if not currentBestJob or isProcessing then return end
     isProcessing = true
@@ -476,15 +530,14 @@ local function processBestJob()
     local nameInfo = currentBestJob.name
     addLog("Joining: " .. nameInfo .. " | " .. playersInfo .. " | " .. moneyInfo .. "/sec")
 
-    -- Шаг 1: Заполняем Job ID
+    -- Шаг 1: Заполняем Job ID (КЭШИРОВАННАЯ версия)
     if not setJobIDText(currentBestJob.jobId) then
         addLog("❌ Не удалось вставить JobID")
         isProcessing = false
         return
     end
 
-
-    -- Шаг 2: Нажимаем кнопку Join
+    -- Шаг 2: Нажимаем кнопку Join (КЭШИРОВАННАЯ версия)
     if not clickJoinButton() then
         addLog("❌ Не удалось нажать Join")
         isProcessing = false
@@ -493,7 +546,7 @@ local function processBestJob()
 
     local endTime = tick()
     local duration = endTime - startTime
-    prints("Job processed in " .. string.format("%.3f", duration) .. " seconds")
+    prints("📦 Cached job processed in " .. string.format("%.3f", duration) .. " seconds")
 
     lastProcessedJob = currentBestJob
     if isSpammerActive then
@@ -525,8 +578,7 @@ local function processingLoop()
     end)
 end
 
-
--- СПАМЕР ЦИКЛ
+-- СПАМЕР ЦИКЛ (теперь с кэшированием!)
 local MIN_DELAY = 0.01  -- минимальная задержка между кликами (10ms)
 local lastClickTime = 0
 
@@ -538,13 +590,11 @@ RunService.Heartbeat:Connect(function()
         if elapsed >= MIN_DELAY then
             setJobIDText(lastSpamJob)
             clickJoinButton()
-            addLog("🔄 Spammer retry: " .. lastSpamJob)
+            addLog("🔄 Cached spammer retry: " .. lastSpamJob)
             lastClickTime = currentTime
         end
     end
 end)
-
-
 
 local function connectWebSocket()
     local success, socket = pcall(WebSocket.connect, WebSocketURL)
@@ -616,7 +666,7 @@ local function createUI()
 
     -- КНОПКА СПАМЕРА СЛЕВА (СИНЯЯ)
     spammerButton = Instance.new("TextButton")
-    spammerButton.Text = "S"
+    spammerButton.Text = "📦" -- Иконка коробки для кэша
     spammerButton.Size = UDim2.new(0, 30, 0, 30)
     spammerButton.Position = UDim2.new(0, 10, 0, 15)
     spammerButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200)
@@ -625,7 +675,7 @@ local function createUI()
     spammerButton.TextSize = 14
 
     hopperButton = Instance.new("TextButton")
-    hopperButton.Text = "HOPPER"
+    hopperButton.Text = "CACHED HOPPER"
     hopperButton.Size = UDim2.new(0, 200, 0, 40)
     hopperButton.Position = UDim2.new(0.5, -100, 0, 10)
     hopperButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
@@ -643,7 +693,7 @@ local function createUI()
     lockButton.TextSize = 18
 
     logText = Instance.new("TextLabel")
-    logText.Text = "Ready to start..."
+    logText.Text = "Ready with caching system..."
     logText.Size = UDim2.new(1, -20, 0, 40)
     logText.Position = UDim2.new(0, 10, 0, 60)
     logText.TextColor3 = Color3.fromRGB(220, 220, 220)
@@ -682,7 +732,7 @@ local function createUI()
 end
 
 -- ===== ГЛАВНЫЙ ЗАПУСК =====
-prints("Loading AUFJoiner system...")
+prints("Loading AUFJoiner with UI caching system...")
 
 local CoreGuiReady = waitForFullLoad()
 menuGui = createUI()
@@ -690,12 +740,22 @@ menuGui = createUI()
 hopperButton.MouseButton1Click:Connect(function()
     isActive = not isActive
     if isActive then
-        hopperButton.Text = "WORKING..."
+        hopperButton.Text = "CACHED WORKING..."
         hopperButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
-        addLog("Started hopping...")
+        addLog("📦 Cached hopping started!")
+        
+        -- Прогреваем кэш при старте
+        addLog("🔍 Preparing UI cache...")
+        local textBox, button = getCachedElements()
+        if textBox and button then
+            addLog("✅ Cache warmed up successfully!")
+        else
+            addLog("⚠️ Cache warm-up failed, will try during runtime")
+        end
+        
         connectWebSocket()
     else
-        hopperButton.Text = "HOPPER"
+        hopperButton.Text = "CACHED HOPPER"
         hopperButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
         addLog("Stopped")
         if connection then connection:Disconnect() end
@@ -724,30 +784,19 @@ lockButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- КНОПКА СПАМЕРА
+-- КНОПКА СПАМЕРА (теперь показывает состояние кэша)
 spammerButton.MouseButton1Click:Connect(function()
     isSpammerActive = not isSpammerActive
     if isSpammerActive then
         spammerButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
-        addLog("🔄 Spammer: ON (5s retry)")
+        addLog("📦 Cached spammer: ON")
     else
         spammerButton.BackgroundColor3 = Color3.fromRGB(70, 130, 200)
-        addLog("🔄 Spammer: OFF (single attempt)")
-    end
-end)
-
-spawn(processingLoop)
-spawn(spammerLoop)
-
-local GuiService = cloneref(game:GetService("GuiService"))
-task.spawn(function()
-    while true do
-        GuiService:ClearError()
-        task.wait(0.01)
-    end
-end)
-
-prints("✅ AUFJoiner system loaded successfully!")
-
-
-
+        addLog("📦 Cached spammer: OFF")
+        
+        -- Дополнительная функция - при выключении показываем статус кэша
+        if cachedTextBox and cachedJoinButton then
+            addLog("💾 Cache status: ACTIVE (" .. string.format("%.1f", CACHE_DURATION - (tick() - lastCacheTime)) .. "s left)")
+        else
+            addLog("💾 Cache status: EMPTY")
+        end
