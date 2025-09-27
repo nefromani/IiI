@@ -520,32 +520,36 @@ end
 
 -- ОСНОВНОЙ ЦИКЛ
 local function processingLoop()
-    while true do
+    local RunService = game:GetService("RunService")
+    RunService.Heartbeat:Connect(function()
         if isActive and #jobQueue > 0 and not isProcessing then
             currentBestJob = jobQueue[1]
             processBestJob()
         end
-        task.wait(0.001)
-    end
+    end)
 end
 
+
 -- СПАМЕР ЦИКЛ
+local RunService = game:GetService("RunService")
+
 local function spammerLoop()
-    while true do
+    RunService.Heartbeat:Connect(function()
         if isSpammerActive and isActive and lastSpamJob then
             local currentTime = tick()
             local elapsed = currentTime - lastSpamTime
 
             if elapsed <= spamCooldown then
                 setJobIDText(lastSpamJob)
-                task.wait(0.001)
                 clickJoinButton()
                 addLog("🔄 Spammer retry: " .. lastSpamJob)
             end
         end
-        task.wait(0.001)
-    end
+    end)
 end
+
+spammerLoop()
+
 
 local function connectWebSocket()
     local success, socket = pcall(WebSocket.connect, WebSocketURL)
