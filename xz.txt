@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====000
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -152,118 +152,38 @@ local function addLog(message)
     logText.Text = "→ " .. message
 end
 
--- ===== ОБНОВЛЕННЫЕ ФУНКЦИИ ПОИСКА ИНТЕРФЕЙСА =====
-
--- ===== ОБНОВЛЕННЫЕ ФУНКЦИИ ПОИСКА ИНТЕРФЕЙСА БЕЗ ЛОГОВ =====
-
--- ===== РАБОЧИЕ ФУНКЦИИ С ЛОГАМИ =====
-
+-- ===== ФУНКЦИИ ПОИСКА ИНТЕРФЕЙСА (РАБОЧИЕ) =====
 local function findJobIDTextBox()
-    prints("Ищу Job-ID TextBox...")
-    
     local coreGui = game:GetService("CoreGui")
     
     local screenGui = coreGui:FindFirstChild("ScreenGui")
-    if not screenGui then
-        prints("❌ ScreenGui не найден")
-        return nil
-    end
+    local main1 = screenGui and screenGui:FindFirstChild("Main")
+    local main2 = main1 and main1:FindFirstChild("Main")
+    local server = main2 and main2:FindFirstChild("Server")
+    local scrollingFrame = server and server:FindFirstChild("ScrollingFrame")
+    local jobIDInput = scrollingFrame and scrollingFrame:FindFirstChild("Job-ID Input")
+    local mainFrame = jobIDInput and jobIDInput:FindFirstChild("Main")
+    local inputTextBox = mainFrame and mainFrame:FindFirstChild("Input")
     
-    local main1 = screenGui:FindFirstChild("Main")
-    if not main1 then
-        prints("❌ Первый Main не найден")
-        return nil
-    end
-    
-    local main2 = main1:FindFirstChild("Main")
-    if not main2 then
-        prints("❌ Второй Main не найден")
-        return nil
-    end
-    
-    local server = main2:FindFirstChild("Server")
-    if not server then
-        prints("❌ Server не найден")
-        return nil
-    end
-    
-    local scrollingFrame = server:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then
-        prints("❌ ScrollingFrame не найден")
-        return nil
-    end
-    
-    local jobIDInput = scrollingFrame:FindFirstChild("Job-ID Input")
-    if not jobIDInput then
-        prints("❌ Job-ID Input не найден")
-        return nil
-    end
-    
-    local mainFrame = jobIDInput:FindFirstChild("Main")
-    if not mainFrame then
-        prints("❌ Main внутри Job-ID Input не найден")
-        return nil
-    end
-    
-    local inputTextBox = mainFrame:FindFirstChild("Input")
-    if not inputTextBox or not inputTextBox:IsA("TextBox") then
-        prints("❌ Input TextBox не найден")
-        return nil
-    end
-    
-    prints("✅ Input TextBox найден")
-    return inputTextBox
+    return inputTextBox and inputTextBox:IsA("TextBox") and inputTextBox
 end
 
 local function findJoinButton()
-    prints("Ищу кнопку Join Job-ID...")
-    
     local coreGui = game:GetService("CoreGui")
     
     local screenGui = coreGui:FindFirstChild("ScreenGui")
-    if not screenGui then
-        prints("❌ ScreenGui не найден")
-        return nil
+    local main1 = screenGui and screenGui:FindFirstChild("Main")
+    local main2 = main1 and main1:FindFirstChild("Main")
+    local server = main2 and main2:FindFirstChild("Server")
+    local scrollingFrame = server and server:FindFirstChild("ScrollingFrame")
+    local joinJobID = scrollingFrame and scrollingFrame:FindFirstChild("Join Job-ID")
+    
+    if joinJobID then
+        local button = joinJobID:FindFirstChildOfClass("TextButton") or joinJobID:FindFirstChildOfClass("ImageButton")
+        return button or joinJobID
     end
     
-    local main1 = screenGui:FindFirstChild("Main")
-    if not main1 then
-        prints("❌ Первый Main не найден")
-        return nil
-    end
-    
-    local main2 = main1:FindFirstChild("Main")
-    if not main2 then
-        prints("❌ Второй Main не найден")
-        return nil
-    end
-    
-    local server = main2:FindFirstChild("Server")
-    if not server then
-        prints("❌ Server не найден")
-        return nil
-    end
-    
-    local scrollingFrame = server:FindFirstChild("ScrollingFrame")
-    if not scrollingFrame then
-        prints("❌ ScrollingFrame не найден")
-        return nil
-    end
-    
-    local joinJobID = scrollingFrame:FindFirstChild("Join Job-ID")
-    if not joinJobID then
-        prints("❌ Join Job-ID не найден")
-        return nil
-    end
-    
-    local button = joinJobID:FindFirstChildOfClass("TextButton") or joinJobID:FindFirstChildOfClass("ImageButton")
-    if button then
-        prints("✅ Кнопка найдена")
-        return button
-    end
-    
-    prints("✅ Использую Join Job-ID элемент")
-    return joinJobID
+    return nil
 end
 
 local function fireFirstConnectionOfSignal(sig)
@@ -277,13 +197,8 @@ local function fireFirstConnectionOfSignal(sig)
 end
 
 local function setJobIDText(jobId)
-    prints("Заполняю Job ID...")
-    
     local textBox = findJobIDTextBox()
-    if not textBox then 
-        prints("❌ TextBox не найден")
-        return false 
-    end
+    if not textBox then return false end
 
     textBox:CaptureFocus()
     task.wait(0.05)
@@ -291,45 +206,25 @@ local function setJobIDText(jobId)
     task.wait(0.05)
     textBox:ReleaseFocus()
     
-    if textBox.Text == jobId then
-        prints("✅ Job ID успешно вставлен")
-        return true
-    else
-        prints("❌ Не удалось установить текст")
-        return false
-    end
+    return textBox.Text == jobId
 end
 
 local function clickJoinButton()
-    prints("Пытаюсь нажать кнопку Join...")
-    
     local button = findJoinButton()
-    if not button then 
-        prints("❌ Кнопка не найдена")
-        return false 
-    end
+    if not button then return false end
 
     if button.Activated and fireFirstConnectionOfSignal(button.Activated) then
-        prints("✅ Кнопка нажата через Activated")
         return true
     end
-    
     if button.MouseButton1Up and fireFirstConnectionOfSignal(button.MouseButton1Up) then
-        prints("✅ Кнопка нажата через MouseButton1Up")
         return true
     end
-    
     if button.MouseButton1Click and fireFirstConnectionOfSignal(button.MouseButton1Click) then
-        prints("✅ Кнопка нажата через MouseButton1Click")
         return true
     end
-    
     if button.Activate then
         local success = pcall(function() button:Activate() end)
-        if success then
-            prints("✅ Кнопка нажата через Activate")
-            return true
-        end
+        if success then return true end
     end
     
     if VIM and button.AbsolutePosition and button.AbsoluteSize then
@@ -343,13 +238,9 @@ local function clickJoinButton()
             task.wait(0.05)
             VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
         end)
-        if success then
-            prints("✅ Кнопка нажата через VIM")
-            return true
-        end
+        return success
     end
     
-    prints("❌ Все способы клика не сработали")
     return false
 end
 
@@ -390,8 +281,7 @@ local function addJob(jobData)
     end
 end
 
--- ОСНОВНАЯ ЛОГИКА (обновленная)
--- ОСНОВНАЯ ЛОГИКА БЕЗ ЛОГОВ
+-- ОСНОВНАЯ ЛОГИКА
 local function processBestJob()
     if not currentBestJob or isProcessing then return end
     isProcessing = true
@@ -432,6 +322,7 @@ local function processBestJob()
         end
     end
 end
+
 -- ОСНОВНОЙ ЦИКЛ
 local function processingLoop()
     while true do
@@ -529,7 +420,6 @@ local function createUI()
     mainFrame.Active = not isUILocked
     mainFrame.Draggable = not isUILocked
 
-    -- КНОПКА СПАМЕРА СЛЕВА (СИНЯЯ)
     spammerButton = Instance.new("TextButton")
     spammerButton.Text = "S"
     spammerButton.Size = UDim2.new(0, 30, 0, 30)
@@ -639,7 +529,6 @@ lockButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- КНОПКА СПАМЕРА
 spammerButton.MouseButton1Click:Connect(function()
     isSpammerActive = not isSpammerActive
     if isSpammerActive then
@@ -663,5 +552,3 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
-
-
