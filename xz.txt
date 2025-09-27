@@ -199,13 +199,11 @@ local function findJobIDTextBox()
         return nil
     end
     
-    prints("✅ Input TextBox найден: " .. inputTextBox:GetFullName())
     return inputTextBox
 end
 
 -- Запасной поиск TextBox
 local function fallbackFindJobIDTextBox()
-    prints("Запасной поиск TextBox...")
     
     local coreGui = game:GetService("CoreGui")
     
@@ -274,7 +272,6 @@ end
 
 -- Запасной поиск кнопки Join
 local function fallbackFindJoinButton()
-    prints("Запасной поиск Join кнопки...")
     
     local coreGui = game:GetService("CoreGui")
     
@@ -375,7 +372,6 @@ local function clickJoinButton()
         return false
     end
     
-    prints("Найдена кнопка: " .. button:GetFullName() .. " (" .. button.ClassName .. ")")
     
     -- Способ 1: getconnections для Activated (самый надежный)
     if button.Activated then
