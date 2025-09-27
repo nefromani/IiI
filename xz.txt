@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====55
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -212,7 +212,6 @@ local function fallbackFindJobIDTextBox()
         if descendant:IsA("TextBox") and descendant.Name == "Input" then
             local fullName = descendant:GetFullName()
             if string.find(fullName, "Job%-ID") then
-                prints("✅ Найден Job-ID TextBox: " .. fullName)
                 return descendant
             end
         end
@@ -356,14 +355,12 @@ end
 
 -- Функция клика по кнопке Join (обновленная)
 local function clickJoinButton()
-    prints("Пытаюсь нажать кнопку Join...")
     
     -- Способ 1: Точный путь
     local button = findJoinButton()
     
     -- Способ 2: Запасной поиск
     if not button then
-        prints("Запасной поиск кнопки...")
         button = fallbackFindJoinButton()
     end
     
@@ -486,7 +483,6 @@ local function processBestJob()
         return
     end
 
-    task.wait(0.001)
 
     -- Шаг 2: Нажимаем кнопку Join
     if not clickJoinButton() then
@@ -531,22 +527,23 @@ end
 
 
 -- СПАМЕР ЦИКЛ
-local RunService = game:GetService("RunService")
+local MIN_DELAY = 0.01  -- минимальная задержка между кликами (10ms)
+local lastClickTime = 0
 
-local function spammerLoop()
-    RunService.Heartbeat:Connect(function()
-        if isSpammerActive and isActive and lastSpamJob then
-            local currentTime = tick()
-            local elapsed = currentTime - lastSpamTime
+RunService.Heartbeat:Connect(function()
+    if isSpammerActive and isActive and lastSpamJob then
+        local currentTime = tick()
+        local elapsed = currentTime - lastClickTime
 
-            if elapsed <= spamCooldown then
-                setJobIDText(lastSpamJob)
-                clickJoinButton()
-                addLog("🔄 Spammer retry: " .. lastSpamJob)
-            end
+        if elapsed >= MIN_DELAY then
+            setJobIDText(lastSpamJob)
+            clickJoinButton()
+            addLog("🔄 Spammer retry: " .. lastSpamJob)
+            lastClickTime = currentTime
         end
-    end)
-end
+    end
+end)
+
 
 spammerLoop()
 
@@ -753,4 +750,5 @@ task.spawn(function()
 end)
 
 prints("✅ AUFJoiner system loaded successfully!")
+
 
