@@ -1,4 +1,4 @@
--- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====
+-- ===== БЫСТРАЯ ПРОВЕРКА HWID БЕЗ ЗАДЕРЖЕК =====55
 if not _G.SCRIPT_KEY then
     game.Players.LocalPlayer:Kick("❌ Укажите _G.SCRIPT_KEY перед запуском!")
     return
@@ -176,22 +176,19 @@ local function findTargetGui()
 end
 
 local function findJobIDTextBox()
-    local scrollingFrame = findTargetGui()
-    if not scrollingFrame then return nil end
-    
-    local jobIDInput = scrollingFrame:FindFirstChild("Job-ID Input")
-    if jobIDInput then
-        local mainFrame = jobIDInput:FindFirstChild("Main")
-        if mainFrame then
-            local inputTextBox = mainFrame:FindFirstChild("Input")
-            if inputTextBox and inputTextBox:IsA("TextBox") then
-                return inputTextBox
+    local gui = findTargetGui()
+    if not gui then return nil end
+
+    for _, desc in ipairs(gui:GetDescendants()) do
+        if desc:IsA("TextBox") and string.find(desc.Name, "Input") then
+            if string.find(desc:GetFullName(), "Job") then
+                return desc
             end
         end
     end
-    
     return nil
 end
+
 
 local function setJobIDText(_, text)
     local textBox = findJobIDTextBox()
@@ -235,45 +232,18 @@ end
 
 -- Универсальный поиск TextBox JobID с fallback
 local function autoFillJobID(jobID)
-    local scrollingFrame = findTargetGui()
-    if not scrollingFrame then
-        prints("❌ ScrollingFrame не найден")
-        return false
-    end
-
-    -- Способ 1: точный путь
-    local textBox
-    local jobIDInput = scrollingFrame:FindFirstChild("Job-ID Input")
-    if jobIDInput then
-        local mainFrame = jobIDInput:FindFirstChild("Main")
-        if mainFrame then
-            textBox = mainFrame:FindFirstChild("Input")
-        end
-    end
-
-    -- Способ 2: fallback поиск
-    if not textBox then
-        for _, desc in pairs(scrollingFrame:GetDescendants()) do
-            if desc:IsA("TextBox") and desc.Name == "Input" and string.find(desc:GetFullName(), "Job%-ID") then
-                textBox = desc
-                break
-            end
-        end
-    end
-
+    local textBox = findJobIDTextBox()
     if not textBox then
         prints("❌ TextBox для Job-ID не найден")
         return false
     end
 
-    -- Вставка JobID
     textBox:CaptureFocus()
     task.wait(0.05)
     textBox.Text = jobID
     task.wait(0.05)
     textBox:ReleaseFocus()
 
-    -- Проверка
     if textBox.Text == jobID then
         prints("[SUCCESS] JobID вставлен: " .. jobID)
         return true
@@ -285,52 +255,26 @@ end
 
 -- Универсальный клик Join кнопки с fallback
 local function autoClickJoin()
-    local scrollingFrame = findTargetGui()
-    if not scrollingFrame then return false end
+    local gui = findTargetGui()
+    if not gui then return false end
 
-    local joinButton
-    local joinElement = scrollingFrame:FindFirstChild("Join Job-ID")
-    if joinElement then
-        joinButton = joinElement:FindFirstChildOfClass("TextButton") or joinElement:FindFirstChildOfClass("ImageButton") or joinElement
-    else
-        for _, desc in pairs(scrollingFrame:GetDescendants()) do
-            if (desc.Name == "Join Job-ID" or desc:IsA("TextButton") or desc:IsA("ImageButton")) then
-                joinButton = desc
-                break
+    for _, desc in ipairs(gui:GetDescendants()) do
+        if desc:IsA("TextButton") and string.find(desc.Text, "Join") then
+            -- Fire connections
+            if desc.Activated then
+                for _, con in ipairs(getconnections(desc.Activated)) do
+                    pcall(function() con:Fire() end)
+                end
+                prints("[SUCCESS] Join нажата через Activated")
+                return true
             end
         end
-    end
-
-    if not joinButton then
-        prints("❌ Кнопка Join не найдена")
-        return false
-    end
-
-    -- Метод 1: Activated connection
-    if joinButton.Activated then
-        for _, con in ipairs(getconnections(joinButton.Activated)) do
-            pcall(function() con:Fire() end)
-        end
-        prints("[SUCCESS] Join нажата через Activated")
-        return true
-    end
-
-    -- Метод 2: VIM fallback
-    if VIM and joinButton.AbsolutePosition and joinButton.AbsoluteSize then
-        local absPos = joinButton.AbsolutePosition
-        local absSize = joinButton.AbsoluteSize
-        local x = absPos.X + absSize.X/2
-        local y = absPos.Y + absSize.Y/2
-        VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.05)
-        VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
-        prints("[SUCCESS] Join нажата через VIM")
-        return true
     end
 
     prints("⚠️ Не удалось нажать Join")
     return false
 end
+
 
 
 
@@ -443,7 +387,7 @@ local function spammerLoop()
             if elapsed <= spamCooldown then
                 if setJobIDText(nil, lastSpamJob) then
                     task.wait(0.05)
-                    if clickJoinButton(nil) then
+                    if autoClickJoin() then
                         addLog("🔄 Spammer retry: " .. lastSpamJob)
                     end
                 end
